@@ -9,5 +9,7 @@ namespace NOVor.Core
         public float Deflection;
         public float DistanceKm;
         public string AirportName;
+        public CourseMode Mode;
+        public bool ToStation;
     }
 }

@@ -16,10 +16,18 @@ namespace NOVor
         private bool _hudVisible = true;
         private bool _menuVisible;
         private CdiInstrument _instrument;
+        private CourseMode _mode = CourseMode.Auto;
+        private float _manualCourse;
 
         public CdiData Data { get; private set; } = new CdiData();
 
         public bool HasSelection => _selectedIndex >= 0 && _selectedIndex < _airbases.Count;
+
+        private void Awake()
+        {
+            _mode = Plugin.CourseModeManual.Value ? CourseMode.Manual : CourseMode.Auto;
+            _manualCourse = Mathf.Repeat(Plugin.DefaultManualCourse.Value, 360f);
+        }
 
         private void Update()
         {
@@ -56,6 +64,14 @@ namespace NOVor
             if (Plugin.PrevAirportKey.Value.IsDown()) CycleAirport(-1);
             if (Plugin.ToggleHudKey.Value.IsDown()) _hudVisible = !_hudVisible;
             if (Plugin.ToggleMenuKey.Value.IsDown()) _menuVisible = !_menuVisible;
+            if (Plugin.CourseDecreaseKey.Value.IsDown()) AdjustCourse(-Plugin.CourseStep.Value);
+            if (Plugin.CourseIncreaseKey.Value.IsDown()) AdjustCourse(Plugin.CourseStep.Value);
+        }
+
+        private void AdjustCourse(float delta)
+        {
+            _manualCourse = Mathf.Repeat(_manualCourse + delta, 360f);
+            _mode = CourseMode.Manual;
         }
 
         private void CycleAirport(int direction)
@@ -99,11 +115,24 @@ namespace NOVor
 
             Data.Heading = heading;
             Data.Bearing = bearing;
-            Data.Course = bearing;
-            Data.Deviation = Mathf.DeltaAngle(bearing, heading);
-            Data.Deflection = Mathf.Clamp(Data.Deviation / Plugin.FullDeflectionDeg.Value, -1f, 1f);
             Data.DistanceKm = distance / 1000f;
             Data.AirportName = target.name;
+            Data.Mode = _mode;
+
+            if (_mode == CourseMode.Manual)
+            {
+                Data.Course = _manualCourse;
+                float diff = Mathf.DeltaAngle(_manualCourse, bearing);
+                Data.ToStation = Mathf.Abs(diff) <= 90f;
+            }
+            else
+            {
+                Data.Course = bearing;
+                Data.ToStation = true;
+            }
+
+            Data.Deviation = Mathf.DeltaAngle(Data.Course, heading);
+            Data.Deflection = Mathf.Clamp(Data.Deviation / Plugin.FullDeflectionDeg.Value, -1f, 1f);
         }
 
         private void EnsureInstrument()
@@ -132,11 +161,6 @@ namespace NOVor
         private void SetInstrumentVisible(bool visible)
         {
             if (_instrument != null) _instrument.SetVisible(visible);
-        }
-
-        private void OnDestroy()
-        {
-            if (_instrument != null) Destroy(_instrument.gameObject);
         }
 
         private void OnGUI()
@@ -169,6 +193,11 @@ namespace NOVor
                 }
             }
             GUI.DragWindow();
+        }
+
+        private void OnDestroy()
+        {
+            if (_instrument != null) Destroy(_instrument.gameObject);
         }
     }
 }

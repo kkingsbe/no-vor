@@ -32,13 +32,14 @@ namespace NOVor.UI
         {
             if (!isActiveAndEnabled) return;
 
-            _titleText.text = $"{data.AirportName}   [{index + 1}/{count}]";
+            string modeTag = data.Mode == CourseMode.Manual ? "MAN" : "AUTO";
+            _titleText.text = $"{data.AirportName}   [{index + 1}/{count}]   {modeTag}";
             _dataText.text =
                 $"HDG {Mathf.RoundToInt(data.Heading):000}\u00b0   " +
                 $"CRS {Mathf.RoundToInt(data.Course):000}\u00b0   " +
                 $"BRG {Mathf.RoundToInt(data.Bearing):000}\u00b0   " +
                 $"DEV {Mathf.RoundToInt(data.Deviation):+#;-#;0}\u00b0   " +
-                $"D {data.DistanceKm:F1} km";
+                $"D {data.DistanceKm:F1} km   {(data.ToStation ? "TO" : "FROM")}";
 
             if (_needle != null)
                 _needle.anchoredPosition = new Vector2(-data.Deflection * NeedleTravelPx, 0f);

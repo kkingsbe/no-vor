@@ -18,6 +18,11 @@ namespace NOVor
         internal static ConfigEntry<float> FullDeflectionDeg;
         internal static ConfigEntry<float> HudOffsetX;
         internal static ConfigEntry<float> HudOffsetY;
+        internal static ConfigEntry<KeyboardShortcut> CourseDecreaseKey;
+        internal static ConfigEntry<KeyboardShortcut> CourseIncreaseKey;
+        internal static ConfigEntry<bool> CourseModeManual;
+        internal static ConfigEntry<float> DefaultManualCourse;
+        internal static ConfigEntry<float> CourseStep;
 
         private GameObject _controller;
 
@@ -40,6 +45,19 @@ namespace NOVor
                 "Show or hide the CDI HUD instrument.");
             ToggleMenuKey = Config.Bind("Hotkeys", "ToggleMenu", new KeyboardShortcut(KeyCode.F9),
                 "Open or close the airport selection list.");
+            CourseDecreaseKey = Config.Bind("Hotkeys", "CourseDecrease", new KeyboardShortcut(KeyCode.LeftBracket),
+                "Decrease the manual course (switches to manual course mode).");
+            CourseIncreaseKey = Config.Bind("Hotkeys", "CourseIncrease", new KeyboardShortcut(KeyCode.RightBracket),
+                "Increase the manual course (switches to manual course mode).");
+
+            CourseModeManual = Config.Bind("Navigation", "ManualCourseByDefault", false,
+                "Start in manual course mode instead of automatic direct-to-airport.");
+            DefaultManualCourse = Config.Bind("Navigation", "DefaultManualCourse", 90f,
+                new ConfigDescription("Initial manual course in degrees (0-359).",
+                    new AcceptableValueRange<float>(0f, 359f)));
+            CourseStep = Config.Bind("Navigation", "CourseStep", 1f,
+                new ConfigDescription("Course change per key press, in degrees.",
+                    new AcceptableValueRange<float>(1f, 30f)));
 
             FullDeflectionDeg = Config.Bind("Navigation", "FullDeflectionDegrees", 10f,
                 new ConfigDescription("Degrees of course deviation that moves the CDI needle to full deflection.",
