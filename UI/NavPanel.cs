@@ -15,6 +15,7 @@ namespace NOVor.UI
         private const float PanelWidth = 460f;
         private const float HeaderHeight = 38f;
         private const float RowHeight = 30f;
+        private const float RowSpacing = 3f;
         private const float ListHeight = 250f;
         private const float ControlHeight = 26f;
 
@@ -22,19 +23,24 @@ namespace NOVor.UI
         private RectTransform _panelRt;
         private GameObject _body;
         private RectTransform _contentRt;
+        private ScrollRect _scrollRect;
+        private GameObject _fadeTop;
+        private GameObject _fadeBottom;
 
         private TextMeshProUGUI _headerReadout;
         private TextMeshProUGUI _minimizeLabel;
         private TMP_InputField _searchInput;
         private TMP_InputField _crsInput;
         private TextMeshProUGUI _targetLabel;
-        private Image _autoBg;
+        private Button _autoBtn;
         private TextMeshProUGUI _autoText;
-        private Image _manualBg;
+        private Button _manualBtn;
         private TextMeshProUGUI _manualText;
+        private Button _toFromBtn;
 
         private readonly List<GameObject> _airportRows = new List<GameObject>();
         private readonly List<Image> _rowBg = new List<Image>();
+        private readonly List<Button> _rowBtns = new List<Button>();
         private readonly List<TextMeshProUGUI> _rowName = new List<TextMeshProUGUI>();
         private readonly List<TextMeshProUGUI> _rowMeta = new List<TextMeshProUGUI>();
         private readonly List<int> _rowSourceIndex = new List<int>();
@@ -209,7 +215,7 @@ namespace NOVor.UI
             vpRt.anchorMax = Vector2.one;
             vpRt.offsetMin = Vector2.zero;
             vpRt.offsetMax = Vector2.zero;
-            viewportGo.GetComponent<Image>().color = new Color(0.02f, 0.06f, 0.035f, 0.55f);
+            viewportGo.GetComponent<Image>().color = new Color(0.02f, 0.06f, 0.035f, 0.85f);
 
             var contentGo = new GameObject("Content", typeof(RectTransform), typeof(VerticalLayoutGroup), typeof(ContentSizeFitter));
             contentGo.transform.SetParent(viewportGo.transform, false);
@@ -219,7 +225,7 @@ namespace NOVor.UI
             _contentRt.pivot = new Vector2(0.5f, 1f);
             _contentRt.sizeDelta = new Vector2(0f, 10f);
             var vlg = contentGo.GetComponent<VerticalLayoutGroup>();
-            vlg.spacing = 3f;
+            vlg.spacing = RowSpacing;
             vlg.childAlignment = TextAnchor.UpperCenter;
             vlg.childControlWidth = true;
             vlg.childControlHeight = true;
@@ -235,6 +241,38 @@ namespace NOVor.UI
             scrollRect.horizontal = false;
             scrollRect.movementType = ScrollRect.MovementType.Clamped;
             scrollRect.scrollSensitivity = 20f;
+            _scrollRect = scrollRect;
+
+            // Subtle top/bottom scrim fades, shown only when rows overflow the viewport.
+            _fadeTop = MakeListFade(scrollGo.transform, true);
+            _fadeBottom = MakeListFade(scrollGo.transform, false);
+        }
+
+        private GameObject MakeListFade(Transform parent, bool top)
+        {
+            var go = new GameObject(top ? "FadeTop" : "FadeBottom", typeof(RectTransform), typeof(Image));
+            go.transform.SetParent(parent, false);
+            var rt = (RectTransform)go.transform;
+            float edge = top ? 1f : 0f;
+            rt.anchorMin = new Vector2(0f, edge);
+            rt.anchorMax = new Vector2(1f, edge);
+            rt.pivot = new Vector2(0.5f, edge);
+            rt.sizeDelta = new Vector2(0f, 16f);
+            rt.anchoredPosition = Vector2.zero;
+            var img = go.GetComponent<Image>();
+            img.sprite = TextureFactory.CreateFadeSprite(top);
+            img.color = Color.white;
+            img.raycastTarget = false;
+            go.SetActive(false);
+            return go;
+        }
+
+        private void RefreshFades()
+        {
+            bool overflow = _airportRows.Count > 0 &&
+                _airportRows.Count * (RowHeight + RowSpacing) - RowSpacing > ListHeight + 0.5f;
+            if (_fadeTop != null) _fadeTop.SetActive(overflow);
+            if (_fadeBottom != null) _fadeBottom.SetActive(overflow);
         }
 
         private void BuildCourseDeck(Transform parent)
@@ -250,12 +288,12 @@ namespace NOVor.UI
             vlg.childForceExpandHeight = false;
 
             // Segmented AUTO / MANUAL mode control.
-            var modeRow = MakeCenteredRow(deck.transform, ControlHeight, 4f);
-            var autoBtn = MakeButton(modeRow.transform, "AUTO", 110f, ControlHeight, () => ModeChanged?.Invoke(CourseMode.Auto));
-            _autoBg = autoBtn.GetComponent<Image>();
+            var modeRow = MakeFilledRow(deck.transform, ControlHeight, 4f);
+            var autoBtn = MakeFlexButton(modeRow.transform, "AUTO", ControlHeight, () => ModeChanged?.Invoke(CourseMode.Auto));
+            _autoBtn = autoBtn;
             _autoText = autoBtn.GetComponentInChildren<TextMeshProUGUI>();
-            var manualBtn = MakeButton(modeRow.transform, "MANUAL", 110f, ControlHeight, () => ModeChanged?.Invoke(CourseMode.Manual));
-            _manualBg = manualBtn.GetComponent<Image>();
+            var manualBtn = MakeFlexButton(modeRow.transform, "MANUAL", ControlHeight, () => ModeChanged?.Invoke(CourseMode.Manual));
+            _manualBtn = manualBtn;
             _manualText = manualBtn.GetComponentInChildren<TextMeshProUGUI>();
 
             // Big CRS readout: click and type a course, scroll-wheel adjusts +/-1.
@@ -274,16 +312,16 @@ namespace NOVor.UI
             scrollEntry.callback.AddListener(new UnityAction<BaseEventData>(OnCourseScroll));
             trigger.triggers.Add(scrollEntry);
 
-            var adjustRow = MakeCenteredRow(deck.transform, ControlHeight, 8f);
-            MakeButton(adjustRow.transform, "-5", 58f, ControlHeight, () => CourseAdjusted?.Invoke(-5f));
-            MakeButton(adjustRow.transform, "-1", 58f, ControlHeight, () => CourseAdjusted?.Invoke(-1f));
-            MakeButton(adjustRow.transform, "+1", 58f, ControlHeight, () => CourseAdjusted?.Invoke(1f));
-            MakeButton(adjustRow.transform, "+5", 58f, ControlHeight, () => CourseAdjusted?.Invoke(5f));
+            var adjustRow = MakeFilledRow(deck.transform, ControlHeight, 8f);
+            MakeFlexButton(adjustRow.transform, "-5", ControlHeight, () => CourseAdjusted?.Invoke(-5f));
+            MakeFlexButton(adjustRow.transform, "-1", ControlHeight, () => CourseAdjusted?.Invoke(-1f));
+            MakeFlexButton(adjustRow.transform, "+1", ControlHeight, () => CourseAdjusted?.Invoke(1f));
+            MakeFlexButton(adjustRow.transform, "+5", ControlHeight, () => CourseAdjusted?.Invoke(5f));
 
-            var setRow = MakeCenteredRow(deck.transform, ControlHeight, 8f);
-            MakeButton(setRow.transform, "SET BRG", 92f, ControlHeight, () => SetCourseToBearing?.Invoke());
-            MakeButton(setRow.transform, "SET HDG", 92f, ControlHeight, () => SetCourseToHeading?.Invoke());
-            MakeButton(setRow.transform, "TO/FR", 70f, ControlHeight, () => CourseFlipToFrom?.Invoke());
+            var setRow = MakeFilledRow(deck.transform, ControlHeight, 8f);
+            MakeFlexButton(setRow.transform, "SET BRG", ControlHeight, () => SetCourseToBearing?.Invoke());
+            MakeFlexButton(setRow.transform, "SET HDG", ControlHeight, () => SetCourseToHeading?.Invoke());
+            _toFromBtn = MakeFlexButton(setRow.transform, "TO/FR", ControlHeight, () => CourseFlipToFrom?.Invoke());
 
             _targetLabel = MakeText(deck.transform, "Target", "", 12, FontStyles.Bold,
                 UiColors.HudAmber, TextAlignmentOptions.Center);
@@ -306,6 +344,23 @@ namespace NOVor.UI
             return go;
         }
 
+        // Full-width row whose children share the width equally (aligned left/right edges).
+        private GameObject MakeFilledRow(Transform parent, float height, float spacing)
+        {
+            var go = MakeCenteredRow(parent, height, spacing);
+            go.GetComponent<HorizontalLayoutGroup>().childForceExpandWidth = true;
+            return go;
+        }
+
+        private Button MakeFlexButton(Transform parent, string text, float height, UnityAction onClick)
+        {
+            var btn = MakeButton(parent, text, 0f, height, onClick);
+            var le = btn.GetComponent<LayoutElement>();
+            le.flexibleWidth = 1f;
+            le.preferredWidth = -1f;
+            return btn;
+        }
+
         private void OnDragEnded(Vector2 pos)
         {
             Plugin.PanelX.Value = pos.x;
@@ -321,7 +376,9 @@ namespace NOVor.UI
 
         private void OnCourseTyped(string value)
         {
-            if (int.TryParse(value, out int course))
+            // Display text carries a degree symbol ("262°"); strip it before parsing.
+            var cleaned = (value ?? "").Trim().TrimEnd('°').Trim();
+            if (int.TryParse(cleaned, out int course))
                 CourseSet?.Invoke(Mathf.Repeat(course, 360f));
             // On parse failure the next SetCourse refresh restores the display text.
         }
@@ -343,7 +400,7 @@ namespace NOVor.UI
         public void SetCourse(CourseMode mode, float course, bool toStation, string airportName)
         {
             if (_crsInput != null && !_crsInput.isFocused)
-                _crsInput.SetTextWithoutNotify($"{Mathf.RoundToInt(course):000}");
+                _crsInput.SetTextWithoutNotify($"{Mathf.RoundToInt(course):000}°");
 
             string name = string.IsNullOrEmpty(airportName) ? "---" : airportName;
             string target = (mode == CourseMode.Manual && !toStation ? "FROM " : "TO ") + name;
@@ -354,23 +411,60 @@ namespace NOVor.UI
             }
 
             bool auto = mode == CourseMode.Auto;
-            if (_autoBg != null)
+            if (_autoBtn != null)
             {
-                _autoBg.color = auto ? UiColors.HudGreenDim : UiColors.BgPanelRaised;
+                ApplyButtonTint(_autoBtn, auto ? UiColors.HudGreenDim : UiColors.BgPanelRaised);
                 _autoText.color = auto ? UiColors.TextPrimary : UiColors.TextSecondary;
-                _manualBg.color = auto ? UiColors.BgPanelRaised : UiColors.HudGreenDim;
+                ApplyButtonTint(_manualBtn, auto ? UiColors.BgPanelRaised : UiColors.HudGreenDim);
                 _manualText.color = auto ? UiColors.TextSecondary : UiColors.TextPrimary;
+            }
+
+            // Tie the TO/FROM state to its control: amber when flying FROM the station.
+            if (_toFromBtn != null)
+            {
+                bool from = mode == CourseMode.Manual && !toStation;
+                ApplyButtonTint(_toFromBtn, from ? UiColors.HudAmberDim : UiColors.HudGreenDim);
             }
         }
 
         public void SetAirports(IReadOnlyList<AirportInfo> airports, int selectedSourceIndex)
         {
+            bool selectionChanged = selectedSourceIndex != _selectedSourceIndex;
             _airports = airports;
             _selectedSourceIndex = selectedSourceIndex;
             RebuildRowsIfNeeded(false);
             RefreshSelection();
             RefreshMeta();
             RefreshHeaderReadout();
+            if (selectionChanged)
+                EnsureSelectedRowVisible();
+        }
+
+        // Keep the current-target row in view after selection changes (hotkey cycling,
+        // NEAREST, click). No-op when the row is already fully visible or filtered out.
+        private void EnsureSelectedRowVisible()
+        {
+            if (_scrollRect == null || _contentRt == null || _selectedSourceIndex < 0) return;
+
+            int row = -1;
+            for (int i = 0; i < _rowSourceIndex.Count; i++)
+            {
+                if (_rowSourceIndex[i] == _selectedSourceIndex) { row = i; break; }
+            }
+            if (row < 0) return;
+
+            Canvas.ForceUpdateCanvases();
+            float contentH = _contentRt.rect.height;
+            float viewH = _scrollRect.viewport != null ? _scrollRect.viewport.rect.height : ListHeight;
+            if (contentH <= viewH + 0.5f) return;
+
+            float rowTop = row * (RowHeight + RowSpacing);
+            float rowBottom = rowTop + RowHeight;
+            float offset = (1f - _scrollRect.verticalNormalizedPosition) * (contentH - viewH);
+            if (rowTop >= offset && rowBottom <= offset + viewH) return; // already fully visible
+
+            float target = (rowTop + RowHeight * 0.5f - viewH * 0.5f) / (contentH - viewH);
+            _scrollRect.verticalNormalizedPosition = 1f - Mathf.Clamp01(target);
         }
 
         private List<AirportInfo> FilteredAirports()
@@ -404,6 +498,7 @@ namespace NOVor.UI
                 UnityEngine.Object.Destroy(row);
             _airportRows.Clear();
             _rowBg.Clear();
+            _rowBtns.Clear();
             _rowName.Clear();
             _rowMeta.Clear();
             _rowSourceIndex.Clear();
@@ -411,6 +506,7 @@ namespace NOVor.UI
 
             for (int i = 0; i < displayed.Count; i++)
                 AddAirportRow(displayed[i]);
+            RefreshFades();
             return true;
         }
 
@@ -418,12 +514,22 @@ namespace NOVor.UI
         {
             for (int i = 0; i < _rowBg.Count; i++)
             {
-                bool sel = _rowSourceIndex[i] == _selectedSourceIndex;
+                bool sel = _selectedSourceIndex >= 0 && _rowSourceIndex[i] == _selectedSourceIndex;
                 if (sel == _rowSelected[i]) continue;
                 _rowSelected[i] = sel;
-                _rowBg[i].color = sel ? UiColors.HudGreenDim : new Color(0f, 0f, 0f, 0f);
-                _rowName[i].color = sel ? UiColors.TextPrimary : UiColors.TextSecondary;
+                ApplyRowVisual(i);
             }
+        }
+
+        private void ApplyRowVisual(int i)
+        {
+            bool sel = _rowSelected[i];
+            // Tint drives hover/press/keyboard-focus feedback; base color carries the
+            // scrim (unselected) or the current-target highlight (selected).
+            ApplyButtonTint(_rowBtns[i], sel ? UiColors.HudGreenDim : UiColors.RowScrim);
+            _rowName[i].color = sel ? UiColors.HudGreen : UiColors.TextSecondary;
+            _rowName[i].fontStyle = sel ? FontStyles.Bold : FontStyles.Normal;
+            _rowMeta[i].color = sel ? UiColors.TextPrimary : UiColors.TextSecondary;
         }
 
         private void RefreshMeta()
@@ -481,14 +587,7 @@ namespace NOVor.UI
             le.minHeight = RowHeight;
 
             var img = go.GetComponent<Image>();
-            img.color = new Color(0f, 0f, 0f, 0f);
             var btn = go.GetComponent<Button>();
-            var colors = btn.colors;
-            colors.normalColor = Color.white;
-            colors.highlightedColor = new Color(1.6f, 1.6f, 1.6f, 1f);
-            colors.pressedColor = new Color(2f, 2f, 2f, 1f);
-            colors.fadeDuration = 0.06f;
-            btn.colors = colors;
             int sourceIndex = info.SourceIndex;
             btn.onClick.AddListener(new UnityAction(() => AirportSelected?.Invoke(sourceIndex)));
 
@@ -513,16 +612,20 @@ namespace NOVor.UI
 
             _airportRows.Add(go);
             _rowBg.Add(img);
+            _rowBtns.Add(btn);
             _rowName.Add(nameTmp);
             _rowMeta.Add(metaTmp);
             _rowSourceIndex.Add(info.SourceIndex);
             _rowSelected.Add(false);
+            ApplyRowVisual(_airportRows.Count - 1);
         }
 
         public void Toggle()
         {
             SetVisible(!_visible);
         }
+
+        public bool IsVisible => _visible;
 
         public void SetVisible(bool visible)
         {
@@ -556,14 +659,8 @@ namespace NOVor.UI
             var le = go.GetComponent<LayoutElement>();
             le.preferredWidth = width;
             le.preferredHeight = height;
-            go.GetComponent<Image>().color = UiColors.BgPanelRaised;
             var btn = go.GetComponent<Button>();
-            var colors = btn.colors;
-            colors.normalColor = Color.white;
-            colors.highlightedColor = new Color(1.6f, 1.6f, 1.6f, 1f);
-            colors.pressedColor = new Color(2f, 2f, 2f, 1f);
-            colors.fadeDuration = 0.06f;
-            btn.colors = colors;
+            ApplyButtonTint(btn, UiColors.BgPanelRaised);
             btn.onClick.AddListener(onClick);
 
             var tmp = MakeText(go.transform, "Text", text, 12, FontStyles.Bold,
@@ -575,6 +672,32 @@ namespace NOVor.UI
             tmpRt.offsetMax = Vector2.zero;
             tmp.raycastTarget = false;
             return btn;
+        }
+
+        // ColorTint transitions set the graphic color absolutely, so the tint must carry
+        // the base color itself; otherwise hover/press flashes white over dark buttons.
+        private static void ApplyButtonTint(Button btn, Color baseColor)
+        {
+            var colors = btn.colors;
+            colors.colorMultiplier = 1f;
+            colors.normalColor = baseColor;
+            colors.highlightedColor = Brighten(baseColor, 1.5f);
+            colors.pressedColor = Brighten(baseColor, 1.9f);
+            colors.selectedColor = Brighten(baseColor, 1.5f);
+            colors.disabledColor = new Color(baseColor.r * 0.5f, baseColor.g * 0.5f, baseColor.b * 0.5f, baseColor.a * 0.5f);
+            colors.fadeDuration = 0.06f;
+            btn.colors = colors;
+            var img = btn.GetComponent<Image>();
+            if (img != null) img.color = baseColor;
+        }
+
+        private static Color Brighten(Color c, float f)
+        {
+            return new Color(
+                Mathf.Clamp01(c.r * f + 0.04f),
+                Mathf.Clamp01(c.g * f + 0.04f),
+                Mathf.Clamp01(c.b * f + 0.04f),
+                c.a);
         }
 
         private TextMeshProUGUI MakeText(Transform parent, string name, string text, int fontSize,

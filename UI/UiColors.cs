@@ -12,6 +12,8 @@ namespace NOVor.UI
         public static readonly Color HudGreen = Hex(0x33ff99);
         public static readonly Color HudGreenDim = Hex(0x1a8a55, 0.55f);
         public static readonly Color HudAmber = Hex(0xffb347);
+        public static readonly Color HudAmberDim = Hex(0x8a5a1a, 0.55f);
+        public static readonly Color RowScrim = Hex(0x0a140d, 0.8f);
         public static readonly Color TextPrimary = Hex(0xccffdd);
         public static readonly Color TextSecondary = Hex(0x77aa88);
         public static readonly Color TextMuted = Hex(0x4a7a5a);

@@ -9,6 +9,10 @@ namespace NOVor.UI
         private const float NeedleTravelPx = 80f;
         private const float ScaleHalfWidthPx = 90f;
 
+        // Inactive steer arrows are fully hidden: parked next to the outer scale ticks
+        // they read as stray glyphs ("<1") wherever the instrument sits on screen.
+        private static readonly Color ArrowHidden = new Color(0f, 0f, 0f, 0f);
+
         private Text _dataText;
         private Text _subText;
         private Text _steerLeft;
@@ -46,9 +50,9 @@ namespace NOVor.UI
             bool steerLeft = data.Deflection >= 0.95f;
             bool steerRight = data.Deflection <= -0.95f;
             if (_steerLeft != null)
-                _steerLeft.color = steerLeft ? UiColors.HudAmber : UiColors.TextMuted;
+                _steerLeft.color = steerLeft ? UiColors.HudAmber : ArrowHidden;
             if (_steerRight != null)
-                _steerRight.color = steerRight ? UiColors.HudAmber : UiColors.TextMuted;
+                _steerRight.color = steerRight ? UiColors.HudAmber : ArrowHidden;
         }
 
         private void Awake()
@@ -127,13 +131,13 @@ namespace NOVor.UI
             needle.sizeDelta = new Vector2(3f, 22f);
             needle.anchoredPosition = Vector2.zero;
 
-            _steerLeft = MakeArrow(scaleRt, "SteerLeft", "<", -(ScaleHalfWidthPx + 16f));
-            _steerRight = MakeArrow(scaleRt, "SteerRight", ">", ScaleHalfWidthPx + 16f);
+            _steerLeft = MakeArrow(scaleRt, "SteerLeft", "<", -(ScaleHalfWidthPx + 26f));
+            _steerRight = MakeArrow(scaleRt, "SteerRight", ">", ScaleHalfWidthPx + 26f);
         }
 
         private static Text MakeArrow(RectTransform parent, string name, string glyph, float x)
         {
-            var rt = MakeText(name, UiColors.TextMuted, 16, FontStyle.Bold);
+            var rt = MakeText(name, ArrowHidden, 16, FontStyle.Bold);
             rt.SetParent(parent, false);
             rt.anchorMin = new Vector2(0.5f, 0.5f);
             rt.anchorMax = new Vector2(0.5f, 0.5f);

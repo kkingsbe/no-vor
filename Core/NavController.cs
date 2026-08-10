@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using NOVor.Core;
 using NOVor.UI;
+using NOVor.Integrations;
 
 namespace NOVor
 {
@@ -40,6 +41,7 @@ namespace NOVor
             _panel.SetCourseToBearing += () => SetManualCourse(Data.Bearing);
             _panel.SetCourseToHeading += () => SetManualCourse(Data.Heading);
             _panel.SetVisible(false);
+            ModBarBridge.Register("no.vor", "VOR", "NO-VOR Nav Panel", () => _panel.IsVisible, () => _panel.Toggle());
         }
 
         private void Update()
@@ -270,6 +272,7 @@ namespace NOVor
 
         private void OnDestroy()
         {
+            ModBarBridge.Unregister("no.vor");
             if (_instrument != null) Destroy(_instrument.gameObject);
             if (_panel != null) _panel.Destroy();
         }
