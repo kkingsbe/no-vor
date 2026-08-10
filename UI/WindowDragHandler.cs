@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Events;
 using UnityEngine.EventSystems;
 
 namespace NOVor.UI
@@ -10,11 +11,13 @@ namespace NOVor.UI
         private Vector2 _startLocal;
         private Vector2 _startAnchored;
         private bool _dragging;
+        private UnityAction<Vector2> _dragEnded;
 
-        public void Init(RectTransform target, RectTransform canvasRect)
+        public void Init(RectTransform target, RectTransform canvasRect, UnityAction<Vector2> onDragEnd = null)
         {
             _target = target;
             _canvasRect = canvasRect;
+            _dragEnded = onDragEnd;
         }
 
         public void OnBeginDrag(PointerEventData eventData)
@@ -35,6 +38,8 @@ namespace NOVor.UI
         public void OnEndDrag(PointerEventData eventData)
         {
             _dragging = false;
+            if (_target != null)
+                _dragEnded?.Invoke(_target.anchoredPosition);
         }
 
         private Vector2 ClampPosition(Vector2 pos)

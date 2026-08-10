@@ -23,6 +23,8 @@ namespace NOVor
         internal static ConfigEntry<bool> CourseModeManual;
         internal static ConfigEntry<float> DefaultManualCourse;
         internal static ConfigEntry<float> CourseStep;
+        internal static ConfigEntry<float> PanelX;
+        internal static ConfigEntry<float> PanelY;
 
         private GameObject _controller;
 
@@ -68,6 +70,13 @@ namespace NOVor
             HudOffsetY = Config.Bind("Hud", "OffsetY", 240f,
                 new ConfigDescription("Vertical offset of the CDI instrument from HUD center (screen px).",
                     new AcceptableValueRange<float>(-800f, 800f)));
+
+            PanelX = Config.Bind("Panel", "PanelX", -620f,
+                new ConfigDescription("Horizontal position of the nav panel (anchored px from screen center).",
+                    new AcceptableValueRange<float>(-2000f, 2000f)));
+            PanelY = Config.Bind("Panel", "PanelY", 0f,
+                new ConfigDescription("Vertical position of the nav panel (anchored px from screen center).",
+                    new AcceptableValueRange<float>(-2000f, 2000f)));
 
             _controller = new GameObject("NOVorController");
             _controller.AddComponent<NavController>();

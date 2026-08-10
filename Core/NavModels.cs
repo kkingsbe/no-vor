@@ -12,5 +12,6 @@ namespace NOVor.Core
         public float Bearing;
         public float DistanceKm;
         public bool HasPosition;
+        public int SourceIndex;
     }
 }
