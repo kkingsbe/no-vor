@@ -72,7 +72,7 @@ namespace NOVor
             HudOffsetX = Config.Bind("Hud", "OffsetX", 0f,
                 new ConfigDescription("Horizontal offset of the CDI instrument from HUD center (screen px).",
                     new AcceptableValueRange<float>(-800f, 800f)));
-            HudOffsetY = Config.Bind("Hud", "OffsetY", -300f,
+            HudOffsetY = Config.Bind("Hud", "OffsetY", 180f,
                 new ConfigDescription("Vertical offset of the CDI instrument from HUD center (screen px).",
                     new AcceptableValueRange<float>(-800f, 800f)));
             HudNudgeStep = Config.Bind("Hud", "NudgeStep", 20f,
