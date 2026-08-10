@@ -1,0 +1,6 @@
+<Project>
+  <PropertyGroup>
+    <NuclearOptionRoot Condition="'$(NuclearOptionRoot)' == ''">D:\SteamLibrary\steamapps\common\Nuclear Option</NuclearOptionRoot>
+  </PropertyGroup>
+  <Import Project="$(MSBuildProjectDirectory)\Local.props" Condition="Exists('$(MSBuildProjectDirectory)\Local.props')" />
+</Project>
