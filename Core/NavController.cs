@@ -14,8 +14,8 @@ namespace NOVor
         private int _selectedIndex = -1;
         private Aircraft _aircraft;
         private bool _hudVisible = true;
-        private bool _menuVisible;
         private CdiInstrument _instrument;
+        private NavPanel _panel;
         private CourseMode _mode = CourseMode.Auto;
         private float _manualCourse;
 
@@ -27,6 +27,15 @@ namespace NOVor
         {
             _mode = Plugin.CourseModeManual.Value ? CourseMode.Manual : CourseMode.Auto;
             _manualCourse = Mathf.Repeat(Plugin.DefaultManualCourse.Value, 360f);
+
+            _panel = new NavPanel();
+            _panel.Create();
+            _panel.AirportSelected += i => _selectedIndex = i;
+            _panel.ModeChanged += m => _mode = m;
+            _panel.CourseAdjusted += AdjustCourse;
+            _panel.SetCourseToBearing += () => SetManualCourse(Data.Bearing);
+            _panel.SetCourseToHeading += () => SetManualCourse(Data.Heading);
+            _panel.SetVisible(false);
         }
 
         private void Update()
@@ -56,6 +65,7 @@ namespace NOVor
             EnsureInstrument();
             SetInstrumentVisible(_hudVisible);
             _instrument?.SetData(Data, _selectedIndex, _airbases.Count);
+            _panel?.SetCourse(Data.Mode, Data.Course, Data.ToStation);
         }
 
         private void HandleInput()
@@ -63,7 +73,7 @@ namespace NOVor
             if (Plugin.NextAirportKey.Value.IsDown()) CycleAirport(1);
             if (Plugin.PrevAirportKey.Value.IsDown()) CycleAirport(-1);
             if (Plugin.ToggleHudKey.Value.IsDown()) _hudVisible = !_hudVisible;
-            if (Plugin.ToggleMenuKey.Value.IsDown()) _menuVisible = !_menuVisible;
+            if (Plugin.ToggleMenuKey.Value.IsDown()) _panel?.Toggle();
             if (Plugin.CourseDecreaseKey.Value.IsDown()) AdjustCourse(-Plugin.CourseStep.Value);
             if (Plugin.CourseIncreaseKey.Value.IsDown()) AdjustCourse(Plugin.CourseStep.Value);
         }
@@ -71,6 +81,12 @@ namespace NOVor
         private void AdjustCourse(float delta)
         {
             _manualCourse = Mathf.Repeat(_manualCourse + delta, 360f);
+            _mode = CourseMode.Manual;
+        }
+
+        private void SetManualCourse(float value)
+        {
+            _manualCourse = Mathf.Repeat(value, 360f);
             _mode = CourseMode.Manual;
         }
 
@@ -163,41 +179,10 @@ namespace NOVor
             if (_instrument != null) _instrument.SetVisible(visible);
         }
 
-        private void OnGUI()
-        {
-            if (!_menuVisible) return;
-
-            var rect = new Rect(Screen.width / 2f - 220f, 40f, 440f, 460f);
-            rect.y = Mathf.Min(rect.y, Screen.height - 500f);
-            GUI.Window(4711, rect, DrawMenu, "NO VOR - Airports");
-        }
-
-        private void DrawMenu(int id)
-        {
-            if (_airbases.Count == 0)
-            {
-                GUILayout.Label("No airports detected. Fly a mission and try again.");
-                GUI.DragWindow();
-                return;
-            }
-
-            GUILayout.Label($"Select an airport ({_airbases.Count} detected)");
-            GUILayout.Space(4f);
-            for (int i = 0; i < _airbases.Count; i++)
-            {
-                var ab = _airbases[i];
-                var prefix = i == _selectedIndex ? "> " : "   ";
-                if (GUILayout.Button(prefix + ab.name))
-                {
-                    _selectedIndex = i;
-                }
-            }
-            GUI.DragWindow();
-        }
-
         private void OnDestroy()
         {
             if (_instrument != null) Destroy(_instrument.gameObject);
+            if (_panel != null) _panel.Destroy();
         }
     }
 }
