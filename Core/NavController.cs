@@ -42,11 +42,7 @@ namespace NOVor
         {
             HandleInput();
 
-            if (!GameManager.GetLocalAircraft(out _aircraft))
-            {
-                SetInstrumentVisible(false);
-                return;
-            }
+            bool hasAircraft = GameManager.GetLocalAircraft(out _aircraft);
 
             _refreshTimer -= Time.deltaTime;
             if (_refreshTimer <= 0f)
@@ -55,17 +51,47 @@ namespace NOVor
                 RefreshAirbases();
             }
 
-            if (!HasSelection)
+            if (hasAircraft && HasSelection)
+            {
+                UpdateData();
+                EnsureInstrument();
+                SetInstrumentVisible(_hudVisible);
+                _instrument?.SetData(Data, _selectedIndex, _airbases.Count);
+                _panel?.SetCourse(Data.Mode, Data.Course, Data.ToStation);
+            }
+            else
             {
                 SetInstrumentVisible(false);
-                return;
             }
 
-            UpdateData();
-            EnsureInstrument();
-            SetInstrumentVisible(_hudVisible);
-            _instrument?.SetData(Data, _selectedIndex, _airbases.Count);
-            _panel?.SetCourse(Data.Mode, Data.Course, Data.ToStation);
+            UpdatePanel(hasAircraft);
+        }
+
+        private void UpdatePanel(bool hasAircraft)
+        {
+            if (_panel == null) return;
+
+            var infos = new List<AirportInfo>(_airbases.Count);
+            Vector3? pos = hasAircraft && _aircraft != null && _aircraft.rb != null
+                ? (Vector3?)_aircraft.rb.transform.position
+                : null;
+
+            for (int i = 0; i < _airbases.Count; i++)
+            {
+                var ab = _airbases[i];
+                var info = new AirportInfo { Name = ab.name, HasPosition = pos.HasValue };
+                if (pos.HasValue && ab.center != null)
+                {
+                    var to = ab.center.position - pos.Value;
+                    float brg = Mathf.Atan2(to.x, to.z) * Mathf.Rad2Deg;
+                    if (brg < 0f) brg += 360f;
+                    info.Bearing = brg;
+                    info.DistanceKm = new Vector2(to.x, to.z).magnitude / 1000f;
+                }
+                infos.Add(info);
+            }
+
+            _panel.SetAirports(infos, _selectedIndex);
         }
 
         private void HandleInput()

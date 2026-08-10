@@ -16,6 +16,7 @@ namespace NOVor.UI
 
         private GameObject _root;
         private RectTransform _panelRt;
+        private RectTransform _contentRt;
         private readonly List<GameObject> _airportRows = new List<GameObject>();
         private readonly List<Image> _rowBg = new List<Image>();
         private readonly List<TextMeshProUGUI> _rowName = new List<TextMeshProUGUI>();
@@ -109,9 +110,46 @@ namespace NOVor.UI
             var animator = panelGo.AddComponent<UiAnimator>();
             animator.Init(slImage);
 
+            BuildAirportSection(panelGo.transform);
             BuildCourseSection(panelGo.transform);
 
             SetVisible(false);
+        }
+
+        private void BuildAirportSection(Transform parent)
+        {
+            AddLabel(parent, "AIRPORTS", 0f, -46f, UiColors.TextSecondary, 12);
+
+            var scrollGo = new GameObject("AirportScroll", typeof(RectTransform), typeof(ScrollRect));
+            scrollGo.transform.SetParent(parent, false);
+            var scrollRt = scrollGo.GetComponent<RectTransform>();
+            scrollRt.anchorMin = new Vector2(0, 1);
+            scrollRt.anchorMax = new Vector2(1, 1);
+            scrollRt.pivot = new Vector2(0, 1);
+            scrollRt.sizeDelta = new Vector2(PanelWidth - 16, 300);
+            scrollRt.anchoredPosition = new Vector2(8, -64);
+
+            var viewportGo = new GameObject("Viewport", typeof(RectTransform), typeof(RectMask2D));
+            viewportGo.transform.SetParent(scrollGo.transform, false);
+            var vpRt = viewportGo.GetComponent<RectTransform>();
+            vpRt.anchorMin = Vector2.zero;
+            vpRt.anchorMax = Vector2.one;
+            vpRt.offsetMin = Vector2.zero;
+            vpRt.offsetMax = Vector2.zero;
+
+            var contentGo = new GameObject("Content", typeof(RectTransform));
+            contentGo.transform.SetParent(viewportGo.transform, false);
+            _contentRt = contentGo.GetComponent<RectTransform>();
+            _contentRt.anchorMin = new Vector2(0, 1);
+            _contentRt.anchorMax = new Vector2(1, 1);
+            _contentRt.pivot = new Vector2(0, 1);
+            _contentRt.sizeDelta = new Vector2(0, 10);
+
+            var scrollRect = scrollGo.GetComponent<ScrollRect>();
+            scrollRect.content = _contentRt;
+            scrollRect.viewport = vpRt;
+            scrollRect.vertical = true;
+            scrollRect.movementType = ScrollRect.MovementType.Clamped;
         }
 
         private void BuildCourseSection(Transform parent)
@@ -144,6 +182,105 @@ namespace NOVor.UI
                 _autoBg.color = mode == CourseMode.Auto ? UiColors.HudGreenDim : UiColors.BgPanelRaised;
             if (_manualBg != null)
                 _manualBg.color = mode == CourseMode.Manual ? UiColors.HudGreenDim : UiColors.BgPanelRaised;
+        }
+
+        public void SetAirports(IReadOnlyList<AirportInfo> airports, int selectedIndex)
+        {
+            if (airports.Count != _airportRows.Count)
+                RebuildRows(airports, selectedIndex);
+            else
+                RefreshSelection(selectedIndex);
+            RefreshMeta(airports);
+        }
+
+        private void RebuildRows(IReadOnlyList<AirportInfo> airports, int selectedIndex)
+        {
+            foreach (var row in _airportRows)
+                UnityEngine.Object.Destroy(row);
+            _airportRows.Clear();
+            _rowBg.Clear();
+            _rowName.Clear();
+            _rowMeta.Clear();
+
+            _contentRt.sizeDelta = new Vector2(0, Mathf.Max(airports.Count * 24 + 8, 10));
+            for (int i = 0; i < airports.Count; i++)
+                AddAirportRow(i, airports[i], selectedIndex);
+        }
+
+        private void RefreshSelection(int selectedIndex)
+        {
+            for (int i = 0; i < _rowBg.Count; i++)
+            {
+                bool sel = i == selectedIndex;
+                _rowBg[i].color = sel ? UiColors.HudGreenDim : UiColors.BgPanelRaised;
+                _rowName[i].color = sel ? UiColors.TextPrimary : UiColors.TextSecondary;
+            }
+        }
+
+        private void RefreshMeta(IReadOnlyList<AirportInfo> airports)
+        {
+            for (int i = 0; i < _rowMeta.Count && i < airports.Count; i++)
+            {
+                var info = airports[i];
+                _rowMeta[i].text = info.HasPosition
+                    ? $"BRG {Mathf.RoundToInt(info.Bearing):000}\u00b0  {info.DistanceKm:F1}km"
+                    : "";
+            }
+        }
+
+        private void AddAirportRow(int index, AirportInfo info, int selectedIndex)
+        {
+            var go = new GameObject("Row" + index, typeof(RectTransform), typeof(Image), typeof(Button));
+            go.transform.SetParent(_contentRt.transform, false);
+            var rt = go.GetComponent<RectTransform>();
+            rt.anchorMin = new Vector2(0, 1);
+            rt.anchorMax = new Vector2(0, 1);
+            rt.pivot = new Vector2(0, 1);
+            rt.sizeDelta = new Vector2(PanelWidth - 32, 22);
+            rt.anchoredPosition = new Vector2(4, -index * 24 - 4);
+
+            var img = go.GetComponent<Image>();
+            img.color = index == selectedIndex ? UiColors.HudGreenDim : UiColors.BgPanelRaised;
+            var btn = go.GetComponent<Button>();
+            var colors = btn.colors;
+            colors.highlightedColor = UiColors.BorderPanel;
+            colors.pressedColor = UiColors.HudGreenDim;
+            btn.colors = colors;
+            int idx = index;
+            btn.onClick.AddListener(new UnityAction(() => AirportSelected?.Invoke(idx)));
+
+            var nameGo = new GameObject("Name", typeof(RectTransform), typeof(TextMeshProUGUI));
+            nameGo.transform.SetParent(go.transform, false);
+            var nameRt = nameGo.GetComponent<RectTransform>();
+            nameRt.anchorMin = Vector2.zero;
+            nameRt.anchorMax = Vector2.one;
+            nameRt.offsetMin = new Vector2(8, 0);
+            nameRt.offsetMax = new Vector2(-120, 0);
+            var nameTmp = nameGo.GetComponent<TextMeshProUGUI>();
+            nameTmp.font = FontLoader.GetDefaultFont();
+            nameTmp.fontSize = 12;
+            nameTmp.color = index == selectedIndex ? UiColors.TextPrimary : UiColors.TextSecondary;
+            nameTmp.alignment = TextAlignmentOptions.Left;
+            nameTmp.text = info.Name;
+
+            var metaGo = new GameObject("Meta", typeof(RectTransform), typeof(TextMeshProUGUI));
+            metaGo.transform.SetParent(go.transform, false);
+            var metaRt = metaGo.GetComponent<RectTransform>();
+            metaRt.anchorMin = Vector2.zero;
+            metaRt.anchorMax = Vector2.one;
+            metaRt.offsetMin = new Vector2(-116, 0);
+            metaRt.offsetMax = new Vector2(-8, 0);
+            var metaTmp = metaGo.GetComponent<TextMeshProUGUI>();
+            metaTmp.font = FontLoader.GetDefaultFont();
+            metaTmp.fontSize = 11;
+            metaTmp.color = UiColors.TextSecondary;
+            metaTmp.alignment = TextAlignmentOptions.Right;
+            metaTmp.text = "";
+
+            _airportRows.Add(go);
+            _rowBg.Add(img);
+            _rowName.Add(nameTmp);
+            _rowMeta.Add(metaTmp);
         }
 
         public void Toggle()
