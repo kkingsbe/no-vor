@@ -5,8 +5,8 @@ namespace NOVor.UI
     internal static class UiColors
     {
         // Green-phosphor HUD palette, matching Nuclear Option's cockpit HUD.
-        public static readonly Color BgPanel = Hex(0x070d09, 0.85f);
-        public static readonly Color BgPanelRaised = Hex(0x0e1a12, 0.90f);
+        public static readonly Color BgPanel = Hex(0x070d09, 0.93f);
+        public static readonly Color BgPanelRaised = Hex(0x0e1a12, 0.95f);
         public static readonly Color BorderSubtle = Hex(0x14301f);
         public static readonly Color BorderPanel = Hex(0x1f4d33);
         public static readonly Color HudGreen = Hex(0x33ff99);

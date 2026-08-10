@@ -139,11 +139,13 @@ namespace NOVor.UI
 
             var title = MakeText(go.transform, "Title", "NO-VOR NAV", 15, FontStyles.Bold,
                 UiColors.HudGreen, TextAlignmentOptions.MidlineLeft);
+            title.enableWordWrapping = false;
             var titleLe = title.gameObject.AddComponent<LayoutElement>();
-            titleLe.preferredWidth = 100f;
+            titleLe.preferredWidth = 130f;
 
             _headerReadout = MakeText(go.transform, "Readout", "", 12, FontStyles.Normal,
                 UiColors.TextSecondary, TextAlignmentOptions.MidlineRight);
+            _headerReadout.enableWordWrapping = false;
             var readoutLe = _headerReadout.gameObject.AddComponent<LayoutElement>();
             readoutLe.flexibleWidth = 1f;
             _headerReadout.overflowMode = TextOverflowModes.Ellipsis;
@@ -207,7 +209,7 @@ namespace NOVor.UI
             vpRt.anchorMax = Vector2.one;
             vpRt.offsetMin = Vector2.zero;
             vpRt.offsetMax = Vector2.zero;
-            viewportGo.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.001f);
+            viewportGo.GetComponent<Image>().color = new Color(0.02f, 0.06f, 0.035f, 0.55f);
 
             var contentGo = new GameObject("Content", typeof(RectTransform), typeof(VerticalLayoutGroup), typeof(ContentSizeFitter));
             contentGo.transform.SetParent(viewportGo.transform, false);
@@ -257,6 +259,10 @@ namespace NOVor.UI
             _manualText = manualBtn.GetComponentInChildren<TextMeshProUGUI>();
 
             // Big CRS readout: click and type a course, scroll-wheel adjusts +/-1.
+            var crsCaption = MakeText(deck.transform, "CrsCaption", "COURSE", 10, FontStyles.Bold,
+                UiColors.TextMuted, TextAlignmentOptions.Center);
+            var crsCaptionLe = crsCaption.gameObject.AddComponent<LayoutElement>();
+            crsCaptionLe.preferredHeight = 14f;
             _crsInput = MakeInput(deck.transform, null, 26, true);
             var crsLe = _crsInput.gameObject.AddComponent<LayoutElement>();
             crsLe.preferredHeight = 44f;
