@@ -9,12 +9,10 @@ namespace NOVor.UI
         private const float NeedleTravelPx = 80f;
         private const float ScaleHalfWidthPx = 90f;
 
-        private static readonly Color HudGreen = new Color(0.2f, 1f, 0.6f, 0.95f);
-        private static readonly Color NeedleAmber = new Color(1f, 0.85f, 0.25f, 1f);
-        private static readonly Color Backdrop = new Color(0f, 0f, 0f, 0.6f);
-
-        private Text _titleText;
         private Text _dataText;
+        private Text _subText;
+        private Text _steerLeft;
+        private Text _steerRight;
         private RectTransform _needle;
 
         public void ApplyOffsets(float x, float y)
@@ -33,16 +31,24 @@ namespace NOVor.UI
             if (!isActiveAndEnabled) return;
 
             string modeTag = data.Mode == CourseMode.Manual ? "MAN" : "AUTO";
-            _titleText.text = $"{data.AirportName}   [{index + 1}/{count}]   {modeTag}";
             _dataText.text =
-                $"HDG {Mathf.RoundToInt(data.Heading):000}\u00b0   " +
-                $"CRS {Mathf.RoundToInt(data.Course):000}\u00b0   " +
-                $"BRG {Mathf.RoundToInt(data.Bearing):000}\u00b0   " +
-                $"DEV {Mathf.RoundToInt(data.Deviation):+#;-#;0}\u00b0   " +
-                $"D {data.DistanceKm:F1} km   {(data.ToStation ? "TO" : "FROM")}";
+                $"{data.AirportName}  [{index + 1}/{count}]  {modeTag} · " +
+                $"BRG {Mathf.RoundToInt(data.Bearing):000}° {data.DistanceKm:F1}km · " +
+                $"CRS {Mathf.RoundToInt(data.Course):000}° {(data.ToStation ? "TO" : "FR")}";
+            _subText.text =
+                $"HDG {Mathf.RoundToInt(data.Heading):000}° · " +
+                $"DEV {Mathf.RoundToInt(data.Deviation):+#;-#;0}°";
 
             if (_needle != null)
                 _needle.anchoredPosition = new Vector2(-data.Deflection * NeedleTravelPx, 0f);
+
+            // Steer arrows light up amber at near-full deflection, toward the needle side.
+            bool steerLeft = data.Deflection >= 0.95f;
+            bool steerRight = data.Deflection <= -0.95f;
+            if (_steerLeft != null)
+                _steerLeft.color = steerLeft ? UiColors.HudAmber : UiColors.TextMuted;
+            if (_steerRight != null)
+                _steerRight.color = steerRight ? UiColors.HudAmber : UiColors.TextMuted;
         }
 
         private void Awake()
@@ -56,29 +62,25 @@ namespace NOVor.UI
             rt.anchorMin = new Vector2(0.5f, 0.5f);
             rt.anchorMax = new Vector2(0.5f, 0.5f);
             rt.pivot = new Vector2(0.5f, 0.5f);
-            rt.sizeDelta = new Vector2(440f, 150f);
+            rt.sizeDelta = new Vector2(360f, 90f);
 
-            var bg = MakeRect("Bg", Backdrop);
-            bg.anchorMin = new Vector2(0f, 0f);
-            bg.anchorMax = new Vector2(1f, 1f);
-            bg.offsetMin = Vector2.zero;
-            bg.offsetMax = Vector2.zero;
-
-            var title = MakeText("Title", HudGreen, 16, FontStyle.Bold);
-            title.anchorMin = new Vector2(0.5f, 1f);
-            title.anchorMax = new Vector2(0.5f, 1f);
-            title.pivot = new Vector2(0.5f, 1f);
-            title.anchoredPosition = new Vector2(0f, -6f);
-            title.sizeDelta = new Vector2(420f, 24f);
-            _titleText = title.GetComponent<Text>();
-
-            var data = MakeText("Data", HudGreen, 14, FontStyle.Bold);
-            data.anchorMin = new Vector2(0.5f, 1f);
-            data.anchorMax = new Vector2(0.5f, 1f);
-            data.pivot = new Vector2(0.5f, 1f);
-            data.anchoredPosition = new Vector2(0f, -34f);
-            data.sizeDelta = new Vector2(420f, 22f);
+            var data = MakeText("DataLine", UiColors.HudGreen, 14, FontStyle.Bold);
+            data.SetParent(rt, false);
+            data.anchorMin = new Vector2(0.5f, 0.5f);
+            data.anchorMax = new Vector2(0.5f, 0.5f);
+            data.pivot = new Vector2(0.5f, 0.5f);
+            data.anchoredPosition = new Vector2(0f, 34f);
+            data.sizeDelta = new Vector2(360f, 20f);
             _dataText = data.GetComponent<Text>();
+
+            var sub = MakeText("SubLine", UiColors.TextMuted, 11, FontStyle.Normal);
+            sub.SetParent(rt, false);
+            sub.anchorMin = new Vector2(0.5f, 0.5f);
+            sub.anchorMax = new Vector2(0.5f, 0.5f);
+            sub.pivot = new Vector2(0.5f, 0.5f);
+            sub.anchoredPosition = new Vector2(0f, -26f);
+            sub.sizeDelta = new Vector2(360f, 16f);
+            _subText = sub.GetComponent<Text>();
 
             BuildScale(rt);
             SetVisible(false);
@@ -86,35 +88,61 @@ namespace NOVor.UI
 
         private void BuildScale(RectTransform parent)
         {
-            var scale = MakeRect("Scale", Color.clear);
-            scale.SetParent(parent, false);
-            scale.anchorMin = new Vector2(0.5f, 0.5f);
-            scale.anchorMax = new Vector2(0.5f, 0.5f);
-            scale.pivot = new Vector2(0.5f, 0.5f);
-            scale.anchoredPosition = new Vector2(0f, -46f);
-            scale.sizeDelta = new Vector2(ScaleHalfWidthPx * 2f, 50f);
+            var scale = new GameObject("Scale", typeof(RectTransform));
+            var scaleRt = (RectTransform)scale.transform;
+            scaleRt.SetParent(parent, false);
+            scaleRt.anchorMin = new Vector2(0.5f, 0.5f);
+            scaleRt.anchorMax = new Vector2(0.5f, 0.5f);
+            scaleRt.pivot = new Vector2(0.5f, 0.5f);
+            scaleRt.anchoredPosition = new Vector2(0f, 2f);
+            scaleRt.sizeDelta = new Vector2(ScaleHalfWidthPx * 2f + 40f, 24f);
 
-            float[] ticks = { -1f, -0.5f, 0f, 0.5f, 1f };
+            float[] ticks = { -1f, -0.5f, 0.5f, 1f };
             foreach (var t in ticks)
             {
-                var tick = MakeRect("Tick", HudGreen);
-                tick.SetParent(scale, false);
+                var tick = MakeRect("Tick", UiColors.HudGreen);
+                tick.SetParent(scaleRt, false);
                 tick.anchorMin = new Vector2(0.5f, 0.5f);
                 tick.anchorMax = new Vector2(0.5f, 0.5f);
                 tick.pivot = new Vector2(0.5f, 0.5f);
-                float half = Mathf.Abs(t) < 0.01f ? 6f : 10f;
-                tick.sizeDelta = new Vector2(2f, half);
+                tick.sizeDelta = new Vector2(2f, 8f);
                 tick.anchoredPosition = new Vector2(t * ScaleHalfWidthPx, 0f);
             }
 
-            var needle = MakeRect("Needle", NeedleAmber);
+            // Center marker: taller, brighter caret marking the selected course.
+            var center = MakeRect("CenterMarker", UiColors.HudGreen);
+            center.SetParent(scaleRt, false);
+            center.anchorMin = new Vector2(0.5f, 0.5f);
+            center.anchorMax = new Vector2(0.5f, 0.5f);
+            center.pivot = new Vector2(0.5f, 0.5f);
+            center.sizeDelta = new Vector2(3f, 14f);
+            center.anchoredPosition = Vector2.zero;
+
+            var needle = MakeRect("Needle", UiColors.HudAmber);
             _needle = needle;
-            needle.SetParent(scale, false);
+            needle.SetParent(scaleRt, false);
             needle.anchorMin = new Vector2(0.5f, 0.5f);
             needle.anchorMax = new Vector2(0.5f, 0.5f);
             needle.pivot = new Vector2(0.5f, 0.5f);
-            needle.sizeDelta = new Vector2(3f, 40f);
+            needle.sizeDelta = new Vector2(3f, 22f);
             needle.anchoredPosition = Vector2.zero;
+
+            _steerLeft = MakeArrow(scaleRt, "SteerLeft", "<", -(ScaleHalfWidthPx + 16f));
+            _steerRight = MakeArrow(scaleRt, "SteerRight", ">", ScaleHalfWidthPx + 16f);
+        }
+
+        private static Text MakeArrow(RectTransform parent, string name, string glyph, float x)
+        {
+            var rt = MakeText(name, UiColors.TextMuted, 16, FontStyle.Bold);
+            rt.SetParent(parent, false);
+            rt.anchorMin = new Vector2(0.5f, 0.5f);
+            rt.anchorMax = new Vector2(0.5f, 0.5f);
+            rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.sizeDelta = new Vector2(20f, 22f);
+            rt.anchoredPosition = new Vector2(x, 0f);
+            var text = rt.GetComponent<Text>();
+            text.text = glyph;
+            return text;
         }
 
         private static RectTransform MakeRect(string name, Color color)
@@ -122,6 +150,7 @@ namespace NOVor.UI
             var go = new GameObject(name, typeof(RectTransform), typeof(Image));
             var img = go.GetComponent<Image>();
             img.color = color;
+            img.raycastTarget = false;
             return (RectTransform)go.transform;
         }
 
@@ -136,6 +165,7 @@ namespace NOVor.UI
             text.alignment = TextAnchor.MiddleCenter;
             text.horizontalOverflow = HorizontalWrapMode.Overflow;
             text.verticalOverflow = VerticalWrapMode.Overflow;
+            text.raycastTarget = false;
             return (RectTransform)go.transform;
         }
 

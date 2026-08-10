@@ -18,6 +18,7 @@ namespace NOVor
         private NavPanel _panel;
         private CourseMode _mode = CourseMode.Auto;
         private float _manualCourse;
+        private List<AirportInfo> _lastInfos;
 
         public CdiData Data { get; private set; } = new CdiData();
 
@@ -33,6 +34,9 @@ namespace NOVor
             _panel.AirportSelected += i => _selectedIndex = i;
             _panel.ModeChanged += m => _mode = m;
             _panel.CourseAdjusted += AdjustCourse;
+            _panel.CourseSet += SetManualCourse;
+            _panel.CourseFlipToFrom += () => SetManualCourse(_manualCourse + 180f);
+            _panel.NearestRequested += SelectNearest;
             _panel.SetCourseToBearing += () => SetManualCourse(Data.Bearing);
             _panel.SetCourseToHeading += () => SetManualCourse(Data.Heading);
             _panel.SetVisible(false);
@@ -57,7 +61,7 @@ namespace NOVor
                 EnsureInstrument();
                 SetInstrumentVisible(_hudVisible);
                 _instrument?.SetData(Data, _selectedIndex, _airbases.Count);
-                _panel?.SetCourse(Data.Mode, Data.Course, Data.ToStation);
+                _panel?.SetCourse(Data.Mode, Data.Course, Data.ToStation, Data.AirportName);
             }
             else
             {
@@ -79,7 +83,12 @@ namespace NOVor
             for (int i = 0; i < _airbases.Count; i++)
             {
                 var ab = _airbases[i];
-                var info = new AirportInfo { Name = ab.name, HasPosition = pos.HasValue };
+                var info = new AirportInfo
+                {
+                    Name = CleanName(ab.name),
+                    HasPosition = pos.HasValue,
+                    SourceIndex = i
+                };
                 if (pos.HasValue && ab.center != null)
                 {
                     var to = ab.center.position - pos.Value;
@@ -91,7 +100,48 @@ namespace NOVor
                 infos.Add(info);
             }
 
+            // Nearest first; entries without a known position go last (in source order).
+            infos.Sort((a, b) =>
+            {
+                if (a.HasPosition != b.HasPosition) return a.HasPosition ? -1 : 1;
+                if (a.HasPosition) return a.DistanceKm.CompareTo(b.DistanceKm);
+                return a.SourceIndex.CompareTo(b.SourceIndex);
+            });
+
+            // Disambiguate repeated names with a numeric suffix in distance order.
+            var nameCounts = new Dictionary<string, int>();
+            for (int i = 0; i < infos.Count; i++)
+            {
+                var info = infos[i];
+                string baseName = info.Name;
+                nameCounts.TryGetValue(baseName, out int count);
+                nameCounts[baseName] = count + 1;
+                if (count > 0)
+                {
+                    info.Name = baseName + " " + (count + 1);
+                    infos[i] = info;
+                }
+            }
+
+            _lastInfos = infos;
             _panel.SetAirports(infos, _selectedIndex);
+        }
+
+        private void SelectNearest()
+        {
+            if (_lastInfos == null) return;
+            for (int i = 0; i < _lastInfos.Count; i++)
+            {
+                if (!_lastInfos[i].HasPosition) continue;
+                _selectedIndex = _lastInfos[i].SourceIndex;
+                return;
+            }
+        }
+
+        private static string CleanName(string raw)
+        {
+            if (string.IsNullOrEmpty(raw)) return raw ?? "";
+            return raw.Replace("(Clone)", "").Trim();
         }
 
         private void HandleInput()
@@ -158,7 +208,7 @@ namespace NOVor
             Data.Heading = heading;
             Data.Bearing = bearing;
             Data.DistanceKm = distance / 1000f;
-            Data.AirportName = target.name;
+            Data.AirportName = CleanName(target.name);
             Data.Mode = _mode;
 
             if (_mode == CourseMode.Manual)
