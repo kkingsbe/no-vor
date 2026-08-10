@@ -18,6 +18,11 @@ namespace NOVor
         internal static ConfigEntry<float> FullDeflectionDeg;
         internal static ConfigEntry<float> HudOffsetX;
         internal static ConfigEntry<float> HudOffsetY;
+        internal static ConfigEntry<float> HudNudgeStep;
+        internal static ConfigEntry<KeyboardShortcut> HudNudgeUpKey;
+        internal static ConfigEntry<KeyboardShortcut> HudNudgeDownKey;
+        internal static ConfigEntry<KeyboardShortcut> HudNudgeLeftKey;
+        internal static ConfigEntry<KeyboardShortcut> HudNudgeRightKey;
         internal static ConfigEntry<KeyboardShortcut> CourseDecreaseKey;
         internal static ConfigEntry<KeyboardShortcut> CourseIncreaseKey;
         internal static ConfigEntry<bool> CourseModeManual;
@@ -67,9 +72,20 @@ namespace NOVor
             HudOffsetX = Config.Bind("Hud", "OffsetX", 0f,
                 new ConfigDescription("Horizontal offset of the CDI instrument from HUD center (screen px).",
                     new AcceptableValueRange<float>(-800f, 800f)));
-            HudOffsetY = Config.Bind("Hud", "OffsetY", 240f,
+            HudOffsetY = Config.Bind("Hud", "OffsetY", -300f,
                 new ConfigDescription("Vertical offset of the CDI instrument from HUD center (screen px).",
                     new AcceptableValueRange<float>(-800f, 800f)));
+            HudNudgeStep = Config.Bind("Hud", "NudgeStep", 20f,
+                new ConfigDescription("Pixels the CDI instrument moves per nudge hotkey press.",
+                    new AcceptableValueRange<float>(1f, 200f)));
+            HudNudgeUpKey = Config.Bind("Hotkeys", "HudNudgeUp", new KeyboardShortcut(KeyCode.UpArrow, KeyCode.LeftControl),
+                "Move the CDI instrument up (persisted to Hud OffsetY).");
+            HudNudgeDownKey = Config.Bind("Hotkeys", "HudNudgeDown", new KeyboardShortcut(KeyCode.DownArrow, KeyCode.LeftControl),
+                "Move the CDI instrument down (persisted to Hud OffsetY).");
+            HudNudgeLeftKey = Config.Bind("Hotkeys", "HudNudgeLeft", new KeyboardShortcut(KeyCode.LeftArrow, KeyCode.LeftControl),
+                "Move the CDI instrument left (persisted to Hud OffsetX).");
+            HudNudgeRightKey = Config.Bind("Hotkeys", "HudNudgeRight", new KeyboardShortcut(KeyCode.RightArrow, KeyCode.LeftControl),
+                "Move the CDI instrument right (persisted to Hud OffsetX).");
 
             PanelX = Config.Bind("Panel", "PanelX", -620f,
                 new ConfigDescription("Horizontal position of the nav panel (anchored px from screen center).",

@@ -152,6 +152,19 @@ namespace NOVor
             if (Plugin.ToggleMenuKey.Value.IsDown()) _panel?.Toggle();
             if (Plugin.CourseDecreaseKey.Value.IsDown()) AdjustCourse(-Plugin.CourseStep.Value);
             if (Plugin.CourseIncreaseKey.Value.IsDown()) AdjustCourse(Plugin.CourseStep.Value);
+
+            float step = Plugin.HudNudgeStep.Value;
+            if (Plugin.HudNudgeUpKey.Value.IsDown()) NudgeInstrument(0f, step);
+            if (Plugin.HudNudgeDownKey.Value.IsDown()) NudgeInstrument(0f, -step);
+            if (Plugin.HudNudgeLeftKey.Value.IsDown()) NudgeInstrument(-step, 0f);
+            if (Plugin.HudNudgeRightKey.Value.IsDown()) NudgeInstrument(step, 0f);
+        }
+
+        private void NudgeInstrument(float dx, float dy)
+        {
+            Plugin.HudOffsetX.Value = Mathf.Clamp(Plugin.HudOffsetX.Value + dx, -800f, 800f);
+            Plugin.HudOffsetY.Value = Mathf.Clamp(Plugin.HudOffsetY.Value + dy, -800f, 800f);
+            _instrument?.ApplyOffsets(Plugin.HudOffsetX.Value, Plugin.HudOffsetY.Value);
         }
 
         private void AdjustCourse(float delta)
