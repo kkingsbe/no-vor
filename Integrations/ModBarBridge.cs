@@ -8,20 +8,10 @@ namespace NOVor.Integrations
         private static Type _api;
         private static MethodInfo _register;
         private static MethodInfo _unregister;
-        private static bool _resolved;
-
-        private static void Resolve()
-        {
-            _resolved = true;
-            _api = Type.GetType("NoModBar.ModBarApi, NoModBar");
-            if (_api == null) return;
-            _register = _api.GetMethod("Register", new[] { typeof(object) });
-            _unregister = _api.GetMethod("Unregister", new[] { typeof(string) });
-        }
 
         public static bool Register(string id, string name, string tooltip, Func<bool> isVisible, Action toggle)
         {
-            if (!_resolved) Resolve();
+            Resolve();
             if (_register == null) return false;
             try
             {
@@ -36,7 +26,7 @@ namespace NOVor.Integrations
 
         public static bool Unregister(string id)
         {
-            if (!_resolved) Resolve();
+            Resolve();
             if (_unregister == null) return false;
             try
             {
@@ -46,6 +36,34 @@ namespace NOVor.Integrations
             {
                 return false;
             }
+        }
+
+        private static void Resolve()
+        {
+            if (_api != null) return;
+            var asm = FindApiAssembly();
+            if (asm == null) return;
+            _api = asm.GetType("NoModBar.Core.ModBarApi");
+            if (_api == null) return;
+            _register = _api.GetMethod("Register", new[] { typeof(object) });
+            _unregister = _api.GetMethod("Unregister", new[] { typeof(string) });
+        }
+
+        private static Assembly FindApiAssembly()
+        {
+            var assemblies = AppDomain.CurrentDomain.GetAssemblies();
+            for (int i = 0; i < assemblies.Length; i++)
+            {
+                try
+                {
+                    if (assemblies[i].GetName().Name == "NoModBar.Core")
+                        return assemblies[i];
+                }
+                catch
+                {
+                }
+            }
+            return null;
         }
     }
 }

@@ -63,7 +63,8 @@ namespace NOVor
                 EnsureInstrument();
                 SetInstrumentVisible(_hudVisible);
                 _instrument?.SetData(Data, _selectedIndex, _airbases.Count);
-                _panel?.SetCourse(Data.Mode, Data.Course, Data.ToStation, Data.AirportName);
+                _panel?.SetCourse(Data.Mode, Data.Course, Data.ToStation, Data.AirportName,
+                    Data.Bearing, Data.DistanceKm);
             }
             else
             {

@@ -7,6 +7,7 @@ namespace NOVor.UI
         private static Texture2D _cachedPanelBg;
         private static Sprite _fadeTopSprite;
         private static Sprite _fadeBottomSprite;
+        private static Sprite _framedSprite;
 
         // 1xN vertical gradient sprite: opaque dark scrim at one edge, transparent at the other.
         // Used to soften the airport list edges when content overflows the viewport.
@@ -30,6 +31,32 @@ namespace NOVor.UI
             var sprite = Sprite.Create(tex, new Rect(0f, 0f, 1f, h), new Vector2(0.5f, 0.5f));
             if (opaqueAtTop) _fadeTopSprite = sprite; else _fadeBottomSprite = sprite;
             return sprite;
+        }
+
+        // 9-slice framed sprite: solid fill with a crisp border that stays thin at any
+        // size. Used to give input fields a visible bezel so they read as editable.
+        public static Sprite CreateFramedSprite(Color bgColor, Color borderColor, int borderPx = 2)
+        {
+            if (_framedSprite != null) return _framedSprite;
+
+            const int size = 32;
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            tex.filterMode = FilterMode.Bilinear;
+            tex.wrapMode = TextureWrapMode.Clamp;
+            var pixels = new Color[size * size];
+            for (int y = 0; y < size; y++)
+                for (int x = 0; x < size; x++)
+                {
+                    bool onBorder = x < borderPx || x >= size - borderPx ||
+                                    y < borderPx || y >= size - borderPx;
+                    pixels[y * size + x] = onBorder ? borderColor : bgColor;
+                }
+            tex.SetPixels(pixels);
+            tex.Apply();
+            var border = new Vector4(borderPx, borderPx, borderPx, borderPx);
+            _framedSprite = Sprite.Create(tex, new Rect(0f, 0f, size, size),
+                new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect, border);
+            return _framedSprite;
         }
 
         public static Texture2D CreatePanelBackground(int width, int height, Color bgColor, Color borderColor, float borderWidth = 1f)

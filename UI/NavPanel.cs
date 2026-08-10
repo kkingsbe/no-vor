@@ -17,13 +17,17 @@ namespace NOVor.UI
         private const float RowHeight = 30f;
         private const float RowSpacing = 3f;
         private const float ListHeight = 250f;
+        private const float ListMinHeight = 60f;
         private const float ControlHeight = 26f;
+        private const float StepperHeight = 22f;
 
         private GameObject _root;
         private RectTransform _panelRt;
         private GameObject _body;
         private RectTransform _contentRt;
         private ScrollRect _scrollRect;
+        private LayoutElement _scrollLe;
+        private TextMeshProUGUI _emptyLabel;
         private GameObject _fadeTop;
         private GameObject _fadeBottom;
 
@@ -37,6 +41,7 @@ namespace NOVor.UI
         private Button _manualBtn;
         private TextMeshProUGUI _manualText;
         private Button _toFromBtn;
+        private TextMeshProUGUI _toFromText;
 
         private readonly List<GameObject> _airportRows = new List<GameObject>();
         private readonly List<Image> _rowBg = new List<Image>();
@@ -149,6 +154,7 @@ namespace NOVor.UI
             var titleLe = title.gameObject.AddComponent<LayoutElement>();
             titleLe.preferredWidth = 130f;
 
+            // Carries the full target readout; it is the only info visible when minimized.
             _headerReadout = MakeText(go.transform, "Readout", "", 12, FontStyles.Normal,
                 UiColors.TextSecondary, TextAlignmentOptions.MidlineRight);
             _headerReadout.enableWordWrapping = false;
@@ -156,7 +162,7 @@ namespace NOVor.UI
             readoutLe.flexibleWidth = 1f;
             _headerReadout.overflowMode = TextOverflowModes.Ellipsis;
 
-            var minBtn = MakeButton(go.transform, "_", 28f, ControlHeight, ToggleMinimized);
+            var minBtn = MakeButton(go.transform, "-", 28f, ControlHeight, ToggleMinimized);
             _minimizeLabel = minBtn.GetComponentInChildren<TextMeshProUGUI>();
             var closeBtn = MakeButton(go.transform, "X", 28f, ControlHeight, () => SetVisible(false));
             closeBtn.GetComponentInChildren<TextMeshProUGUI>().color = UiColors.TextSecondary;
@@ -197,7 +203,8 @@ namespace NOVor.UI
             inputLe.flexibleWidth = 1f;
             _searchInput.onValueChanged.AddListener(new UnityAction<string>(OnFilterChanged));
 
-            MakeButton(go.transform, "NEAREST", 84f, ControlHeight, () => NearestRequested?.Invoke());
+            MakeButton(go.transform, "NEAREST", 84f, ControlHeight, () => NearestRequested?.Invoke(),
+                UiColors.ButtonPrimary);
         }
 
         private void BuildAirportList(Transform parent)
@@ -206,7 +213,8 @@ namespace NOVor.UI
             scrollGo.transform.SetParent(parent, false);
             var le = scrollGo.GetComponent<LayoutElement>();
             le.preferredHeight = ListHeight;
-            le.minHeight = 100f;
+            le.minHeight = ListMinHeight;
+            _scrollLe = le;
 
             var viewportGo = new GameObject("Viewport", typeof(RectTransform), typeof(RectMask2D), typeof(Image));
             viewportGo.transform.SetParent(scrollGo.transform, false);
@@ -215,7 +223,7 @@ namespace NOVor.UI
             vpRt.anchorMax = Vector2.one;
             vpRt.offsetMin = Vector2.zero;
             vpRt.offsetMax = Vector2.zero;
-            viewportGo.GetComponent<Image>().color = new Color(0.02f, 0.06f, 0.035f, 0.85f);
+            viewportGo.GetComponent<Image>().color = new Color(0.02f, 0.06f, 0.035f, 0.95f);
 
             var contentGo = new GameObject("Content", typeof(RectTransform), typeof(VerticalLayoutGroup), typeof(ContentSizeFitter));
             contentGo.transform.SetParent(viewportGo.transform, false);
@@ -242,6 +250,17 @@ namespace NOVor.UI
             scrollRect.movementType = ScrollRect.MovementType.Clamped;
             scrollRect.scrollSensitivity = 20f;
             _scrollRect = scrollRect;
+
+            // Centered empty state, shown when the filter matches nothing.
+            _emptyLabel = MakeText(viewportGo.transform, "Empty", "NO MATCHES", 12, FontStyles.Normal,
+                UiColors.TextSecondary, TextAlignmentOptions.Center);
+            var emptyRt = _emptyLabel.GetComponent<RectTransform>();
+            emptyRt.anchorMin = Vector2.zero;
+            emptyRt.anchorMax = Vector2.one;
+            emptyRt.offsetMin = Vector2.zero;
+            emptyRt.offsetMax = Vector2.zero;
+            _emptyLabel.raycastTarget = false;
+            _emptyLabel.gameObject.SetActive(false);
 
             // Subtle top/bottom scrim fades, shown only when rows overflow the viewport.
             _fadeTop = MakeListFade(scrollGo.transform, true);
@@ -275,6 +294,18 @@ namespace NOVor.UI
             if (_fadeBottom != null) _fadeBottom.SetActive(overflow);
         }
 
+        // Shrink the list to fit its rows (up to ListHeight) and toggle the empty state.
+        private void UpdateListChrome(int rowCount)
+        {
+            if (_scrollLe != null)
+            {
+                float contentH = rowCount > 0 ? rowCount * (RowHeight + RowSpacing) - RowSpacing : 0f;
+                _scrollLe.preferredHeight = Mathf.Clamp(contentH, ListMinHeight, ListHeight);
+            }
+            if (_emptyLabel != null)
+                _emptyLabel.gameObject.SetActive(rowCount == 0 && _airports != null);
+        }
+
         private void BuildCourseDeck(Transform parent)
         {
             var deck = new GameObject("CourseDeck", typeof(RectTransform), typeof(VerticalLayoutGroup));
@@ -297,11 +328,11 @@ namespace NOVor.UI
             _manualText = manualBtn.GetComponentInChildren<TextMeshProUGUI>();
 
             // Big CRS readout: click and type a course, scroll-wheel adjusts +/-1.
-            var crsCaption = MakeText(deck.transform, "CrsCaption", "COURSE", 10, FontStyles.Bold,
-                UiColors.TextMuted, TextAlignmentOptions.Center);
+            var crsCaption = MakeText(deck.transform, "CrsCaption", "COURSE - TYPE / SCROLL", 10, FontStyles.Bold,
+                UiColors.TextSecondary, TextAlignmentOptions.Center);
             var crsCaptionLe = crsCaption.gameObject.AddComponent<LayoutElement>();
             crsCaptionLe.preferredHeight = 14f;
-            _crsInput = MakeInput(deck.transform, null, 26, true);
+            _crsInput = MakeInput(deck.transform, null, 26, true, true);
             var crsLe = _crsInput.gameObject.AddComponent<LayoutElement>();
             crsLe.preferredHeight = 44f;
             _crsInput.contentType = TMP_InputField.ContentType.IntegerNumber;
@@ -312,21 +343,25 @@ namespace NOVor.UI
             scrollEntry.callback.AddListener(new UnityAction<BaseEventData>(OnCourseScroll));
             trigger.triggers.Add(scrollEntry);
 
-            var adjustRow = MakeFilledRow(deck.transform, ControlHeight, 8f);
-            MakeFlexButton(adjustRow.transform, "-5", ControlHeight, () => CourseAdjusted?.Invoke(-5f));
-            MakeFlexButton(adjustRow.transform, "-1", ControlHeight, () => CourseAdjusted?.Invoke(-1f));
-            MakeFlexButton(adjustRow.transform, "+1", ControlHeight, () => CourseAdjusted?.Invoke(1f));
-            MakeFlexButton(adjustRow.transform, "+5", ControlHeight, () => CourseAdjusted?.Invoke(5f));
-
-            var setRow = MakeFilledRow(deck.transform, ControlHeight, 8f);
-            MakeFlexButton(setRow.transform, "SET BRG", ControlHeight, () => SetCourseToBearing?.Invoke());
-            MakeFlexButton(setRow.transform, "SET HDG", ControlHeight, () => SetCourseToHeading?.Invoke());
-            _toFromBtn = MakeFlexButton(setRow.transform, "TO/FR", ControlHeight, () => CourseFlipToFrom?.Invoke());
-
+            // TO/FROM + target flag, directly under the course it describes.
             _targetLabel = MakeText(deck.transform, "Target", "", 12, FontStyles.Bold,
-                UiColors.HudAmber, TextAlignmentOptions.Center);
+                UiColors.HudGreen, TextAlignmentOptions.Center);
             var targetLe = _targetLabel.gameObject.AddComponent<LayoutElement>();
             targetLe.preferredHeight = 18f;
+
+            // Secondary steppers: smaller and ghosted so the primary actions stand out.
+            var adjustRow = MakeFilledRow(deck.transform, StepperHeight, 8f);
+            MakeFlexButton(adjustRow.transform, "-5", StepperHeight, () => CourseAdjusted?.Invoke(-5f), UiColors.ButtonGhost, 11);
+            MakeFlexButton(adjustRow.transform, "-1", StepperHeight, () => CourseAdjusted?.Invoke(-1f), UiColors.ButtonGhost, 11);
+            MakeFlexButton(adjustRow.transform, "+1", StepperHeight, () => CourseAdjusted?.Invoke(1f), UiColors.ButtonGhost, 11);
+            MakeFlexButton(adjustRow.transform, "+5", StepperHeight, () => CourseAdjusted?.Invoke(5f), UiColors.ButtonGhost, 11);
+
+            var setRow = MakeFilledRow(deck.transform, ControlHeight, 8f);
+            MakeFlexButton(setRow.transform, "CRS=BRG", ControlHeight, () => SetCourseToBearing?.Invoke(), UiColors.ButtonPrimary);
+            MakeFlexButton(setRow.transform, "CRS=HDG", ControlHeight, () => SetCourseToHeading?.Invoke(), UiColors.ButtonPrimary);
+            var toFromBtn = MakeFlexButton(setRow.transform, "TO/FR", ControlHeight, () => CourseFlipToFrom?.Invoke(), UiColors.ButtonPrimary);
+            _toFromBtn = toFromBtn;
+            _toFromText = toFromBtn.GetComponentInChildren<TextMeshProUGUI>();
         }
 
         private GameObject MakeCenteredRow(Transform parent, float height, float spacing)
@@ -352,9 +387,10 @@ namespace NOVor.UI
             return go;
         }
 
-        private Button MakeFlexButton(Transform parent, string text, float height, UnityAction onClick)
+        private Button MakeFlexButton(Transform parent, string text, float height, UnityAction onClick,
+            Color? baseColor = null, int fontSize = 12)
         {
-            var btn = MakeButton(parent, text, 0f, height, onClick);
+            var btn = MakeButton(parent, text, 0f, height, onClick, baseColor, fontSize);
             var le = btn.GetComponent<LayoutElement>();
             le.flexibleWidth = 1f;
             le.preferredWidth = -1f;
@@ -394,36 +430,49 @@ namespace NOVor.UI
         {
             _minimized = !_minimized;
             if (_body != null) _body.SetActive(!_minimized);
-            if (_minimizeLabel != null) _minimizeLabel.text = _minimized ? "+" : "_";
+            if (_minimizeLabel != null) _minimizeLabel.text = _minimized ? "+" : "-";
         }
 
-        public void SetCourse(CourseMode mode, float course, bool toStation, string airportName)
+        public void SetCourse(CourseMode mode, float course, bool toStation, string airportName,
+            float bearing, float distanceKm)
         {
             if (_crsInput != null && !_crsInput.isFocused)
                 _crsInput.SetTextWithoutNotify($"{Mathf.RoundToInt(course):000}°");
 
             string name = string.IsNullOrEmpty(airportName) ? "---" : airportName;
-            string target = (mode == CourseMode.Manual && !toStation ? "FROM " : "TO ") + name;
+            bool from = mode == CourseMode.Manual && !toStation;
+            string target = (from ? "FROM " : "TO ") + name +
+                $"  BRG {Mathf.RoundToInt(bearing):000}°  {FormatDistance(distanceKm)}";
             if (target != _targetText)
             {
                 _targetText = target;
-                if (_targetLabel != null) _targetLabel.text = target;
+                if (_targetLabel != null)
+                {
+                    _targetLabel.text = target;
+                    _targetLabel.color = from ? UiColors.HudAmber : UiColors.HudGreen;
+                }
             }
 
             bool auto = mode == CourseMode.Auto;
             if (_autoBtn != null)
             {
-                ApplyButtonTint(_autoBtn, auto ? UiColors.HudGreenDim : UiColors.BgPanelRaised);
-                _autoText.color = auto ? UiColors.TextPrimary : UiColors.TextSecondary;
-                ApplyButtonTint(_manualBtn, auto ? UiColors.BgPanelRaised : UiColors.HudGreenDim);
-                _manualText.color = auto ? UiColors.TextSecondary : UiColors.TextPrimary;
+                // Active segment is a filled accent with dark text; inactive is a ghost.
+                // Mode state must be readable at a glance, not by comparing similar tints.
+                ApplyButtonTint(_autoBtn, auto ? UiColors.HudGreen : UiColors.BgPanelRaised);
+                _autoText.color = auto ? UiColors.OnAccent : UiColors.TextSecondary;
+                ApplyButtonTint(_manualBtn, auto ? UiColors.BgPanelRaised : UiColors.HudGreen);
+                _manualText.color = auto ? UiColors.TextSecondary : UiColors.OnAccent;
             }
 
-            // Tie the TO/FROM state to its control: amber when flying FROM the station.
+            // TO/FROM is a state indicator, not just a button: label and fill both flip.
             if (_toFromBtn != null)
             {
-                bool from = mode == CourseMode.Manual && !toStation;
-                ApplyButtonTint(_toFromBtn, from ? UiColors.HudAmberDim : UiColors.HudGreenDim);
+                ApplyButtonTint(_toFromBtn, from ? UiColors.HudAmber : UiColors.HudGreen);
+                if (_toFromText != null)
+                {
+                    _toFromText.text = from ? "FR" : "TO";
+                    _toFromText.color = UiColors.OnAccent;
+                }
             }
         }
 
@@ -507,6 +556,7 @@ namespace NOVor.UI
             for (int i = 0; i < displayed.Count; i++)
                 AddAirportRow(displayed[i]);
             RefreshFades();
+            UpdateListChrome(displayed.Count);
             return true;
         }
 
@@ -526,7 +576,7 @@ namespace NOVor.UI
             bool sel = _rowSelected[i];
             // Tint drives hover/press/keyboard-focus feedback; base color carries the
             // scrim (unselected) or the current-target highlight (selected).
-            ApplyButtonTint(_rowBtns[i], sel ? UiColors.HudGreenDim : UiColors.RowScrim);
+            ApplyButtonTint(_rowBtns[i], sel ? UiColors.RowSelected : UiColors.RowScrim);
             _rowName[i].color = sel ? UiColors.HudGreen : UiColors.TextSecondary;
             _rowName[i].fontStyle = sel ? FontStyles.Bold : FontStyles.Normal;
             _rowMeta[i].color = sel ? UiColors.TextPrimary : UiColors.TextSecondary;
@@ -551,7 +601,7 @@ namespace NOVor.UI
                     }
                 }
                 string meta = found && info.HasPosition
-                    ? $"BRG {Mathf.RoundToInt(info.Bearing):000}°  {info.DistanceKm:F1}km"
+                    ? $"BRG {Mathf.RoundToInt(info.Bearing):000}°  {FormatDistance(info.DistanceKm)}"
                     : "";
                 if (_rowMeta[i].text != meta)
                     _rowMeta[i].text = meta;
@@ -568,7 +618,7 @@ namespace NOVor.UI
                     var info = _airports[i];
                     if (info.SourceIndex != _selectedSourceIndex) continue;
                     text = info.HasPosition
-                        ? $"{info.Name}  BRG {Mathf.RoundToInt(info.Bearing):000}°  {info.DistanceKm:F1}km"
+                        ? $"{info.Name}  BRG {Mathf.RoundToInt(info.Bearing):000}°  {FormatDistance(info.DistanceKm)}"
                         : info.Name;
                     break;
                 }
@@ -576,6 +626,12 @@ namespace NOVor.UI
             if (text == _headerText) return;
             _headerText = text;
             if (_headerReadout != null) _headerReadout.text = text;
+        }
+
+        // Meters below 1 km, one decimal above; always a space before the unit.
+        private static string FormatDistance(float km)
+        {
+            return km < 1f ? $"{km * 1000f:F0} m" : $"{km:F1} km";
         }
 
         private void AddAirportRow(AirportInfo info)
@@ -597,7 +653,7 @@ namespace NOVor.UI
             nameRt.anchorMin = Vector2.zero;
             nameRt.anchorMax = Vector2.one;
             nameRt.offsetMin = new Vector2(10f, 0f);
-            nameRt.offsetMax = new Vector2(-150f, 0f);
+            nameRt.offsetMax = new Vector2(-158f, 0f);
             nameTmp.overflowMode = TextOverflowModes.Ellipsis;
             nameTmp.raycastTarget = false;
 
@@ -606,7 +662,7 @@ namespace NOVor.UI
             var metaRt = metaTmp.GetComponent<RectTransform>();
             metaRt.anchorMin = new Vector2(1f, 0f);
             metaRt.anchorMax = Vector2.one;
-            metaRt.offsetMin = new Vector2(-146f, 0f);
+            metaRt.offsetMin = new Vector2(-150f, 0f);
             metaRt.offsetMax = new Vector2(-10f, 0f);
             metaTmp.raycastTarget = false;
 
@@ -652,7 +708,8 @@ namespace NOVor.UI
                 UnityEngine.Object.Destroy(_root);
         }
 
-        private Button MakeButton(Transform parent, string text, float width, float height, UnityAction onClick)
+        private Button MakeButton(Transform parent, string text, float width, float height, UnityAction onClick,
+            Color? baseColor = null, int fontSize = 12)
         {
             var go = new GameObject("Btn_" + text, typeof(RectTransform), typeof(Image), typeof(Button), typeof(LayoutElement));
             go.transform.SetParent(parent, false);
@@ -660,10 +717,10 @@ namespace NOVor.UI
             le.preferredWidth = width;
             le.preferredHeight = height;
             var btn = go.GetComponent<Button>();
-            ApplyButtonTint(btn, UiColors.BgPanelRaised);
+            ApplyButtonTint(btn, baseColor ?? UiColors.BgPanelRaised);
             btn.onClick.AddListener(onClick);
 
-            var tmp = MakeText(go.transform, "Text", text, 12, FontStyles.Bold,
+            var tmp = MakeText(go.transform, "Text", text, fontSize, FontStyles.Bold,
                 UiColors.TextPrimary, TextAlignmentOptions.Center);
             var tmpRt = tmp.GetComponent<RectTransform>();
             tmpRt.anchorMin = Vector2.zero;
@@ -715,11 +772,23 @@ namespace NOVor.UI
             return tmp;
         }
 
-        private TMP_InputField MakeInput(Transform parent, string placeholder, int fontSize, bool big)
+        private TMP_InputField MakeInput(Transform parent, string placeholder, int fontSize, bool big,
+            bool framed = false)
         {
             var go = new GameObject("Input", typeof(RectTransform), typeof(Image), typeof(TMP_InputField));
             go.transform.SetParent(parent, false);
-            go.GetComponent<Image>().color = UiColors.BgPanelRaised;
+            var bg = go.GetComponent<Image>();
+            if (framed)
+            {
+                // Visible bezel so the field reads as editable, not as a plain readout.
+                bg.sprite = TextureFactory.CreateFramedSprite(UiColors.BgPanelRaised, UiColors.BorderPanel);
+                bg.type = Image.Type.Sliced;
+                bg.color = Color.white;
+            }
+            else
+            {
+                bg.color = UiColors.BgPanelRaised;
+            }
 
             var areaGo = new GameObject("TextArea", typeof(RectTransform), typeof(RectMask2D));
             areaGo.transform.SetParent(go.transform, false);
@@ -733,7 +802,7 @@ namespace NOVor.UI
             if (placeholder != null)
             {
                 placeholderTmp = MakeText(areaGo.transform, "Placeholder", placeholder, fontSize,
-                    FontStyles.Normal, UiColors.TextMuted,
+                    FontStyles.Normal, UiColors.TextSecondary,
                     big ? TextAlignmentOptions.Center : TextAlignmentOptions.MidlineLeft);
                 var phRt = placeholderTmp.GetComponent<RectTransform>();
                 phRt.anchorMin = Vector2.zero;
