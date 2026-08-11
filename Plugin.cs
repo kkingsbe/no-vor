@@ -30,6 +30,8 @@ namespace NOVor
         internal static ConfigEntry<float> CourseStep;
         internal static ConfigEntry<float> PanelX;
         internal static ConfigEntry<float> PanelY;
+        internal static ConfigEntry<bool> SortByName;
+        internal static ConfigEntry<bool> FriendlyOnly;
 
         private GameObject _controller;
 
@@ -93,6 +95,10 @@ namespace NOVor
             PanelY = Config.Bind("Panel", "PanelY", 0f,
                 new ConfigDescription("Vertical position of the nav panel (anchored px from screen center).",
                     new AcceptableValueRange<float>(-2000f, 2000f)));
+            SortByName = Config.Bind("Panel", "SortByName", false,
+                "Sort airport rows alphabetically instead of by nearest distance.");
+            FriendlyOnly = Config.Bind("Panel", "FriendlyOnly", false,
+                "Show only fields controlled by the local player's faction.");
 
             _controller = new GameObject("NOVorController");
             _controller.AddComponent<NavController>();

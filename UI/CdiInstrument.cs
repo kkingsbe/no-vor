@@ -37,11 +37,12 @@ namespace NOVor.UI
             string modeTag = data.Mode == CourseMode.Manual ? "MAN" : "AUTO";
             _dataText.text =
                 $"{data.AirportName}  [{index + 1}/{count}]  {modeTag} · " +
-                $"BRG {Mathf.RoundToInt(data.Bearing):000}° {data.DistanceKm:F1}km · " +
+                $"BRG {Mathf.RoundToInt(data.Bearing):000}° {data.DistanceNm:F1}NM · " +
                 $"CRS {Mathf.RoundToInt(data.Course):000}° {(data.ToStation ? "TO" : "FR")}";
             _subText.text =
                 $"HDG {Mathf.RoundToInt(data.Heading):000}° · " +
-                $"DEV {Mathf.RoundToInt(data.Deviation):+#;-#;0}°";
+                $"DEV {Mathf.RoundToInt(data.Deviation):+#;-#;0}° · " +
+                $"STEER {Mathf.RoundToInt(data.SteerHeading):000}°";
 
             if (_needle != null)
                 _needle.anchoredPosition = new Vector2(-data.Deflection * NeedleTravelPx, 0f);
