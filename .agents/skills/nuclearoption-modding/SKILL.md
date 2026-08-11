@@ -203,10 +203,91 @@ For keybindings:
 var key = Config.Bind("Hotkeys", "ActionKey", new KeyboardShortcut(KeyCode.F5));
 ```
 
+## CI Build via GitHub Actions
+
+The standard setup builds on Linux (`ubuntu-24.04`) **without a local game install** by reconstructing the expected `NuclearOptionRoot` layout from reference assemblies. Model your workflow on SITREP's `.github/workflows/release-build.yml`.
+
+### How it works
+
+1. **Checkout + `actions/setup-dotnet`** (`.NET 8.0.x`).
+2. **Game reference assemblies** — the free Nuclear Option **dedicated server** (Steam app `3930080`) is downloaded via SteamCMD and provides `Assembly-CSharp.dll`, `Mirage.dll`, `Rewired_Core.dll`, UnityEngine modules, etc. Cache the managed folder (e.g. `~/nomod-managed`, key `nomod-managed-v1`). SteamCMD is flaky on CI — install it with `sudo add-apt-repository multiverse` + `sudo apt-get install steamcmd`, and retry `+app_update 3930080 validate` up to 3 times, clearing Steam's `appcache` between attempts. Free dedicated-server apps like this one are the community standard for CI refs (no paid game install needed).
+3. **BepInEx core refs** — download the official `BepInEx_win_x64_5.4.23.4.zip` and extract `BepInEx.dll` + `0Harmony.dll` from `BepInEx/core/`.
+4. **Reconstruct `NuclearOptionRoot`** — copy managed assemblies to `<temp>/game/NuclearOption_Data/Managed/`, BepInEx core to `<temp>/game/BepInEx/core/`, then set `NuclearOptionRoot=$temp/game` via `$GITHUB_ENV`. Your `.csproj` HintPaths then resolve exactly as they do locally.
+5. **Build** — `dotnet build -c Release` for both the test harness (if any, as a compile smoke check of shared sources) and the plugin.
+6. **Verify the distribution zip** — a quick script asserts required files exist (e.g. `Sitrep.dll`, native runtime dll, `espeak/espeak-ng.exe`).
+7. **Publish** — `actions/upload-artifact@v4`, then `softprops/action-gh-release@v2` to attach the zip (only on tag pushes).
+
+### Workflow wiring
+
+- **Triggers**: `push: tags: ["v*"]` and `workflow_dispatch` (manual build without a release). `permissions: contents: write` is needed for the Release step.
+- **Concurrency**: `group: release-build-${{ github.ref }}` with `cancel-in-progress: true` so only one build per ref runs.
+- **Release vs artifact**: `softprops/action-gh-release` step should be guarded with `if: startsWith(github.ref, 'refs/tags/')` so manual runs only upload the artifact.
+- The release zip should be produced by the build itself — a `CreateDistZip` MSBuild target (`AfterTargets="Build"`, `Configuration == Release`) that stages a flat, NOMM-compatible archive (see below). Native DLLs (e.g. Windows `onnxruntime.dll`) should be pulled from their NuGet package (`runtimes/win-x64/native/`) so a Linux CI ships the correct win-x64 binary.
+
+## Publishing to NOMM (NOMNOM Registry)
+
+[NOMM](https://github.com/Combat787/NOMM) is the community **mod manager** — a desktop app that downloads and installs Nuclear Option mods. [NOMNOM](https://github.com/KopterBuzz/NOMNOM) is its self-updating **package registry** (a GitHub repo of manifests). To be installable via NOMM a mod must be registered in a `modManifests/*.json` manifest in the NOMNOM repo; NOMM reads that registry to present installable mods and auto-updates them. The CI workflow above is the prerequisite that makes a mod publishable.
+
+### Acceptance Policy (required to pass review)
+
+- **Open-source mandate**: any custom DLL/executable must be open-source with no obfuscation. No malicious code, no unwarranted system changes.
+- Releases must be **GitHub Releases** (NOMNOM auto-discovers them via the GitHub API).
+- **One mod per repository** — no multi-mod release repos.
+- The **first release asset** is the one NOMNOM uses. Multi-file mods must ship a compressed archive (zip/rar/7z).
+- Tag must be a parseable version (`1.2.3`, `v1.2.3`, etc.) and the mod must target **BepInEx 5**.
+
+### Release Requirements
+
+The artifact `downloadUrl` points at a GitHub Release asset, and the manifest needs its `sha256:` digest (copy it from the Release page). A CI workflow that builds on `v*` tags and attaches a flat zip is the standard setup — the zip root should be what lands in `BepInEx/plugins/<id>/` (i.e. `YourMod.dll` + deps at the root, `espeak/`-style data folders included).
+
+### Manifest Schema (`modManifests/<id>.json`)
+
+Filename must match `id`; `id` should be the BepInEx plugin assembly name. Minimal example:
+
+```json
+{
+  "id": "YourMod",
+  "displayName": "Your Mod",
+  "description": "What the mod does.",
+  "tags": ["mod", "QoL"],
+  "urls": [
+    { "name": "info", "url": "https://github.com/Owner/YourMod" }
+  ],
+  "authors": ["Owner"],
+  "githubOwner": "Owner",
+  "githubRepoName": "YourMod",
+  "autoUpdateArtifacts": "True",
+  "artifacts": [
+    {
+      "fileName": "YourMod-1.0.0.zip",
+      "version": "1.0.0",
+      "category": "release",
+      "type": "plugin",
+      "gameVersion": "0.34",
+      "downloadUrl": "https://github.com/Owner/YourMod/releases/download/v1.0.0/YourMod-1.0.0.zip",
+      "hash": "sha256:<from release page>"
+    }
+  ]
+}
+```
+
+Key fields:
+- `autoUpdateArtifacts` — `"True"` (string) enables NOMNOM's hourly auto-update; new releases are picked up **without** re-submitting the manifest.
+- `artifact.version` **must match the DLL metadata version** (NOMNOM validates it).
+- `type`: `"plugin"` for BepInEx plugins; `"addOn"` for extensions (voice packs etc.) requiring an `extends` object.
+- Optional: `dependencies`, `incompatibilities` (arrays of `{id, version}`).
+
+### Submission
+
+1. Fork `KopterBuzz/NOMNOM`, add `modManifests/<id>.json`.
+2. PR to `main` — CI validates schema + content (incl. hash), then a human approves.
+3. After merge, NOMM users can find/install the mod. Later updates = just push a new `v*` tag; the hourly auto-update refreshes the artifact.
+
 ## Existing Mod Repos (Reference)
 
 | Mod | Author | Notable For |
 |-----|--------|-------------|
+| [SITREP](https://github.com/KopterBuzz/no-sitrep) | KopterBuzz | SteamCMD CI build (dedicated-server refs, cached), flat NOMM zip + release workflow |
 | [no-autopilot-mod](https://github.com/qwerty1423/no-autopilot-mod) | qwerty1423 | Most complex mod (824 commits). Docker build, AssemblyPublicizer, thorough OnDestroy cleanup, PID profiles |
 | [NuclearMods](https://github.com/nikkorap/NuclearMods) | nikkorap | 10+ mod collection. Canonical `Config.Bind()` usage, source-gen PluginInfo |
 | [NuclearOptionSDK](https://github.com/Mursisru/NuclearOptionSDK) | Mursisru | WebSocket bridge, Roslyn REPL, scene explorer |
@@ -223,6 +304,7 @@ var key = Config.Bind("Hotkeys", "ActionKey", new KeyboardShortcut(KeyCode.F5));
 | Official Discord | https://discord.gg/nuclear-option |
 | Thunderstore | https://thunderstore.io/c/nuclear-option/ |
 | Mod Manager (NOMM) | https://github.com/Combat787/NOMM |
+| Mod Registry (NOMNOM) | https://github.com/KopterBuzz/NOMNOM |
 | Mods Wiki | https://nuclearoptionmods.miraheze.org/ |
 
 ## Common Mistakes

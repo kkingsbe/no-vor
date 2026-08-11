@@ -1,5 +1,5 @@
 <Project>
   <PropertyGroup>
-    <NuclearOptionRoot>D:\SteamLibrary\steamapps\common\Nuclear Option</NuclearOptionRoot>
+    <NuclearOptionRoot Condition="'$(NuclearOptionRoot)' == ''">D:\SteamLibrary\steamapps\common\Nuclear Option</NuclearOptionRoot>
   </PropertyGroup>
 </Project>

@@ -1,0 +1,122 @@
+name: release-build
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      # ---- Game reference assemblies (community standard: free dedicated server) ----
+      - name: Cache Nuclear Option Managed assemblies
+        id: cache-managed
+        uses: actions/cache@v4
+        with:
+          path: ~/nomod-managed
+          key: nomod-managed-v1
+
+      - name: Install SteamCMD
+        if: steps.cache-managed.outputs.cache-hit != 'true'
+        run: |
+          sudo add-apt-repository -y multiverse
+          sudo dpkg --add-architecture i386
+          sudo apt-get update
+          echo steam steam/question select "I AGREE" | sudo debconf-set-selections
+          echo steam steam/license note '' | sudo debconf-set-selections
+          sudo apt-get install -y steamcmd
+          steamcmd +login anonymous +quit
+
+      - name: Download Nuclear Option dedicated server
+        if: steps.cache-managed.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          install_dir="$RUNNER_TEMP/NuclearOptionServer"
+          managed="$install_dir/NuclearOptionServer_Data/Managed"
+          for attempt in 1 2 3; do
+            echo "SteamCMD attempt $attempt"
+            steamcmd \
+              +force_install_dir "$install_dir" \
+              +login anonymous \
+              +app_info_update 1 \
+              +app_update 3930080 validate \
+              +quit || true
+            if [[ -f "$managed/Assembly-CSharp.dll" ]]; then
+              break
+            fi
+            rm -rf "$HOME/Steam/appcache" \
+                   "$HOME/.steam/appcache" \
+                   "$HOME/.local/share/Steam/appcache" \
+                   "$install_dir/steamapps/appmanifest_3930080.acf"
+          done
+          if [[ ! -f "$managed/Assembly-CSharp.dll" ]]; then
+            echo "::error::SteamCMD failed to install app 3930080 after 3 attempts"
+            exit 1
+          fi
+          mkdir -p "$HOME/nomod-managed"
+          cp -r "$managed/." "$HOME/nomod-managed/"
+
+      # ---- BepInEx core refs (BepInEx.dll, 0Harmony.dll) ----
+      - name: Download BepInEx 5 core assemblies
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/bepinex.zip" \
+            https://github.com/BepInEx/BepInEx/releases/download/v5.4.23.4/BepInEx_win_x64_5.4.23.4.zip
+          mkdir -p "$RUNNER_TEMP/bepinex"
+          unzip -q "$RUNNER_TEMP/bepinex.zip" -d "$RUNNER_TEMP/bepinex"
+
+      - name: Reconstruct game layout for NuclearOptionRoot
+        run: |
+          game="$RUNNER_TEMP/game"
+          mkdir -p "$game/NuclearOption_Data/Managed" "$game/BepInEx/core"
+          cp -r "$HOME/nomod-managed/." "$game/NuclearOption_Data/Managed/"
+          cp "$RUNNER_TEMP/bepinex/BepInEx/core/BepInEx.dll" "$game/BepInEx/core/"
+          cp "$RUNNER_TEMP/bepinex/BepInEx/core/0Harmony.dll" "$game/BepInEx/core/"
+          echo "NuclearOptionRoot=$game" >> "$GITHUB_ENV"
+
+      # ---- Build & test ----
+      - name: Run navigation math harness
+        run: dotnet run --project tests/NavMathHarness -c Release
+
+      - name: Build plugin Release + distribution zip
+        run: dotnet build NOVor.csproj -c Release
+
+      - name: Verify distribution zip contents
+        run: |
+          zip=$(ls "$GITHUB_WORKSPACE"/bin/Release/novor-*.zip)
+          python3 -c "
+          import sys, zipfile
+          names = zipfile.ZipFile(sys.argv[1]).namelist()
+          for n in names: print(n)
+          if 'NOVor.dll' not in names:
+              raise SystemExit('MISSING: NOVor.dll')
+          " "$zip"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: novor-release
+          path: bin/Release/novor-*.zip
+
+      # ---- Publish ----
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: bin/Release/novor-*.zip
+          generate_release_notes: true
