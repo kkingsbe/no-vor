@@ -31,16 +31,19 @@ namespace NOVor.UI
             float courseDelta = (float)NavMath.DeltaAngleDegrees(data.Heading, data.Course);
             float steerDelta = (float)NavMath.DeltaAngleDegrees(data.Heading, data.SteerHeading);
 
-            SetCue(_courseCue, courseDelta, halfSpan, "▽", "◁", "▷");
-            SetCue(_steeringCue, steerDelta, halfSpan, "◇", "←", "→");
+            SetCue(_courseCue, courseDelta, halfSpan, "▽", UiColors.HudGreen);
+            SetCue(_steeringCue, steerDelta, halfSpan, "◇", UiColors.HudAmber);
         }
 
-        private void SetCue(Text cue, float delta, float halfSpan, string glyph, string left, string right)
+        private void SetCue(Text cue, float delta, float halfSpan, string glyph, Color color)
         {
             float halfWidth = _compass.rectTransform.rect.width * 0.5f;
+            bool offScale = Mathf.Abs(delta) > halfSpan;
             float x = Mathf.Clamp(delta / halfSpan, -1f, 1f) * halfWidth;
             cue.rectTransform.anchoredPosition = new Vector2(x, cue.rectTransform.anchoredPosition.y);
-            cue.text = delta < -halfSpan ? left : delta > halfSpan ? right : glyph;
+            cue.text = !offScale ? glyph
+                : delta < 0f ? HudGlyphs.OffScaleLeft : HudGlyphs.OffScaleRight;
+            cue.color = offScale ? UiColors.HudAmber : color;
         }
 
         private void Build()

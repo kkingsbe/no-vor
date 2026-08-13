@@ -18,8 +18,7 @@ namespace NOVor
         private int _selectedIndex = -1;
         private Aircraft _aircraft;
         private bool _hudVisible = true;
-        private CdiInstrument _instrument;
-        private HeadingTapeCues _headingTapeCues;
+        private CockpitHud _cockpitHud;
         private NavPanel _panel;
         private CourseMode _mode = CourseMode.Auto;
         private float _manualCourse;
@@ -75,8 +74,7 @@ namespace NOVor
                 UpdateData();
                 EnsureInstrument();
                 SetInstrumentVisible(_hudVisible);
-                _instrument?.SetData(Data, _selectedIndex, _airbases.Count);
-                _headingTapeCues?.SetData(Data);
+                _cockpitHud?.SetData(Data);
                 _panel?.SetNavigation(Data);
             }
             else
@@ -270,7 +268,7 @@ namespace NOVor
         {
             Plugin.HudOffsetX.Value = Mathf.Clamp(Plugin.HudOffsetX.Value + dx, -800f, 800f);
             Plugin.HudOffsetY.Value = Mathf.Clamp(Plugin.HudOffsetY.Value + dy, -800f, 800f);
-            _instrument?.ApplyOffsets(Plugin.HudOffsetX.Value, Plugin.HudOffsetY.Value);
+            _cockpitHud?.ApplyOffsets(Plugin.HudOffsetX.Value, Plugin.HudOffsetY.Value);
         }
 
         private void AdjustCourse(float delta)
@@ -364,7 +362,7 @@ namespace NOVor
 
         private void EnsureInstrument()
         {
-            if (_instrument != null && _headingTapeCues != null) return;
+            if (_cockpitHud != null && !_cockpitHud.NeedsTapeCues) return;
 
             FlightHud hud = null;
             Transform hudCenter = null;
@@ -380,33 +378,22 @@ namespace NOVor
 
             if (hudCenter == null) return;
 
-            if (_instrument == null)
+            if (_cockpitHud == null)
             {
-                var host = new GameObject("NOVorCdiInstrument", typeof(RectTransform));
+                var host = new GameObject("NOVorCockpitHud", typeof(RectTransform));
                 host.transform.SetParent(hudCenter, false);
-                _instrument = host.AddComponent<CdiInstrument>();
-                _instrument.ApplyOffsets(Plugin.HudOffsetX.Value, Plugin.HudOffsetY.Value);
+                _cockpitHud = host.AddComponent<CockpitHud>();
             }
 
-            if (_headingTapeCues == null)
-            {
-                var compassField = typeof(FlightHud).GetField("compass",
-                    BindingFlags.NonPublic | BindingFlags.Instance);
-                var compass = compassField?.GetValue(hud) as RawImage;
-                if (compass != null)
-                {
-                    var cuesHost = new GameObject("NOVorNativeHeadingTapeCues", typeof(RectTransform));
-                    cuesHost.transform.SetParent(compass.rectTransform, false);
-                    _headingTapeCues = cuesHost.AddComponent<HeadingTapeCues>();
-                    _headingTapeCues.Initialize(compass);
-                }
-            }
+            var compassField = typeof(FlightHud).GetField("compass",
+                BindingFlags.NonPublic | BindingFlags.Instance);
+            _cockpitHud.Initialize(compassField?.GetValue(hud) as RawImage);
+            _cockpitHud.ApplyOffsets(Plugin.HudOffsetX.Value, Plugin.HudOffsetY.Value);
         }
 
         private void SetInstrumentVisible(bool visible)
         {
-            if (_instrument != null) _instrument.SetVisible(visible);
-            if (_headingTapeCues != null) _headingTapeCues.SetVisible(visible);
+            if (_cockpitHud != null) _cockpitHud.SetVisible(visible);
         }
 
         private void BlockCameraInputs()
@@ -480,8 +467,7 @@ namespace NOVor
         {
             RestoreCameraInputs();
             ModBarBridge.Unregister("no.vor");
-            if (_instrument != null) Destroy(_instrument.gameObject);
-            if (_headingTapeCues != null) Destroy(_headingTapeCues.gameObject);
+            if (_cockpitHud != null) Destroy(_cockpitHud.gameObject);
             if (_panel != null) _panel.Destroy();
         }
     }

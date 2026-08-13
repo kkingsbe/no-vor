@@ -29,7 +29,7 @@ namespace NOVor.UI
             gameObject.SetActive(visible);
         }
 
-        public void SetData(CdiData data, int index, int count)
+        public void SetData(CdiData data)
         {
             if (!isActiveAndEnabled) return;
 
@@ -46,14 +46,13 @@ namespace NOVor.UI
         private void SetManualData(CdiData data)
         {
             float magnitude = Mathf.Abs(data.CrossTrackNm);
-            string side = data.CrossTrackNm > 0.005f ? "R" : data.CrossTrackNm < -0.005f ? "L" : "ON";
+            string side = data.Side > 0 ? "R" : data.Side < 0 ? "L" : "ON";
             _actionText.text = "XTK " + FormatCrossTrack(magnitude) + " " + side;
 
-            bool offScale = data.FullScaleNm > 0f && magnitude >= data.FullScaleNm;
-            _needle.gameObject.SetActive(!offScale);
+            _needle.gameObject.SetActive(!data.OffScale);
             _needle.anchoredPosition = new Vector2(data.Deflection * ScaleHalfWidthPx, 0f);
-            _offScaleLeft.color = offScale && data.Deflection < 0f ? UiColors.HudAmber : Hidden;
-            _offScaleRight.color = offScale && data.Deflection > 0f ? UiColors.HudAmber : Hidden;
+            _offScaleLeft.color = data.OffScale && data.Deflection < 0f ? UiColors.HudAmber : Hidden;
+            _offScaleRight.color = data.OffScale && data.Deflection > 0f ? UiColors.HudAmber : Hidden;
             _scaleLabel.text = FormatScale(data.FullScaleNm);
             _toFromFlag.text = data.ToStation ? "▲ TO" : "▼ FR";
         }
@@ -128,7 +127,9 @@ namespace NOVor.UI
                          ScaleHalfWidthPx * 0.5f, ScaleHalfWidthPx })
                 HudGlyphs.MakeCue(scale, "DeviationDot", "•", UiColors.HudGreenDim, new Vector2(x, 0f), 14);
 
-            HudGlyphs.MakeCue(scale, "CenterIndex", "▽", UiColors.HudGreen, Vector2.zero, 16);
+            var centerIndex = HudGlyphs.MakeRect("CenterIndex", UiColors.HudGreenDim);
+            centerIndex.SetParent(scale, false);
+            HudGlyphs.Place(centerIndex, Vector2.zero, new Vector2(2f, 26f));
 
             _needle = HudGlyphs.MakeRect("DeviationNeedle", UiColors.HudGreen);
             _needle.SetParent(scale, false);
