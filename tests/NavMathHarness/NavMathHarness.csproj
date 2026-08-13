@@ -7,5 +7,6 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="..\..\Core\NavMath.cs" Link="Core\NavMath.cs" />
+    <Compile Include="..\..\Core\CdiScale.cs" Link="Core\CdiScale.cs" />
   </ItemGroup>
 </Project>
