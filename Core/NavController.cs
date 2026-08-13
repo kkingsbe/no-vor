@@ -23,6 +23,7 @@ namespace NOVor
         private NavPanel _panel;
         private CourseMode _mode = CourseMode.Auto;
         private float _manualCourse;
+        private CdiScaleMode _scaleMode = CdiScaleMode.Enroute;
 
         private CameraStateManager _camManager;
         private bool _camInputsOverridden;
@@ -344,10 +345,18 @@ namespace NOVor
             Data.SteeringError = (float)NavMath.SteeringErrorDegrees(heading, Data.SteerHeading);
             float crossTrackMeters = (float)NavMath.CrossTrackMeters(Data.Course, -horizontal.x, -horizontal.z);
             Data.CrossTrackNm = crossTrackMeters / 1852f;
-            Data.FullScaleNm = Plugin.FullDeflectionNm.Value;
-            Data.Deflection = _mode == CourseMode.Manual
-                ? (float)NavMath.CrossTrackDeflection(crossTrackMeters, Plugin.FullDeflectionNm.Value * 1852f)
-                : 0f;
+
+            var deviation = CdiScale.Evaluate(Data.Course, Data.CrossTrackNm, Data.DistanceNm,
+                _scaleMode, Plugin.AutoScaleCdi.Value, Plugin.FullDeflectionNm.Value,
+                Plugin.MaxInterceptDegrees.Value);
+            _scaleMode = deviation.Mode;
+
+            Data.ScaleMode = deviation.Mode;
+            Data.FullScaleNm = (float)deviation.FullScaleNm;
+            Data.Side = deviation.Side;
+            Data.OffScale = deviation.OffScale;
+            Data.InterceptHeading = (float)deviation.InterceptHeading;
+            Data.Deflection = _mode == CourseMode.Manual ? (float)deviation.Deflection : 0f;
             Data.GroundSpeedKnots = horizontalSpeed * 1.9438445f;
             Data.HasEta = !double.IsNaN(eta) && !double.IsInfinity(eta);
             Data.EtaSeconds = Data.HasEta ? (float)eta : 0f;

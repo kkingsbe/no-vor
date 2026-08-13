@@ -16,6 +16,8 @@ namespace NOVor
         internal static ConfigEntry<KeyboardShortcut> ToggleHudKey;
         internal static ConfigEntry<KeyboardShortcut> ToggleMenuKey;
         internal static ConfigEntry<float> FullDeflectionNm;
+        internal static ConfigEntry<bool> AutoScaleCdi;
+        internal static ConfigEntry<float> MaxInterceptDegrees;
         internal static ConfigEntry<float> HudOffsetX;
         internal static ConfigEntry<float> HudOffsetY;
         internal static ConfigEntry<int> HudLayoutVersion;
@@ -70,8 +72,13 @@ namespace NOVor
                     new AcceptableValueRange<float>(1f, 30f)));
 
             FullDeflectionNm = Config.Bind("Navigation", "FullDeflectionNauticalMiles", 1f,
-                new ConfigDescription("Cross-track distance in nautical miles that moves the manual CDI to full deflection.",
+                new ConfigDescription("Cross-track distance in nautical miles that moves the manual CDI to full deflection when AutoScaleCdi is disabled.",
                     new AcceptableValueRange<float>(0.1f, 10f)));
+            AutoScaleCdi = Config.Bind("Navigation", "AutoScaleCdi", true,
+                "Scale the CDI automatically by range: 5 NM enroute, 1 NM within 30 NM, 0.3 NM within 2 NM. When disabled, FullDeflectionNauticalMiles is used at all ranges.");
+            MaxInterceptDegrees = Config.Bind("Navigation", "MaxInterceptDegrees", 45f,
+                new ConfigDescription("Largest intercept angle commanded when the CDI is off scale.",
+                    new AcceptableValueRange<float>(10f, 90f)));
             HudOffsetX = Config.Bind("Hud", "OffsetX", 0f,
                 new ConfigDescription("Horizontal offset of the CDI instrument from HUD center (screen px).",
                     new AcceptableValueRange<float>(-800f, 800f)));
