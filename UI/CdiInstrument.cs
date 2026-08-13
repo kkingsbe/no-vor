@@ -106,17 +106,15 @@ namespace NOVor.UI
             rt.pivot = new Vector2(0.5f, 0.5f);
             rt.sizeDelta = new Vector2(320f, 118f);
 
-            var field = MakeText("FieldRange", UiColors.TextSecondary, 12, FontStyle.Bold);
-            field.SetParent(rt, false);
-            Place(field, new Vector2(0f, 48f), new Vector2(260f, 18f));
-            _fieldText = field.GetComponent<Text>();
+            _fieldText = HudGlyphs.MakeText("FieldRange", UiColors.TextSecondary, 12, FontStyle.Bold);
+            _fieldText.rectTransform.SetParent(rt, false);
+            HudGlyphs.Place(_fieldText.rectTransform, new Vector2(0f, 48f), new Vector2(260f, 18f));
 
             BuildManualScale(rt);
 
-            var action = MakeText("Action", UiColors.HudGreen, 16, FontStyle.Bold);
-            action.SetParent(rt, false);
-            Place(action, new Vector2(0f, -47f), new Vector2(260f, 22f));
-            _actionText = action.GetComponent<Text>();
+            _actionText = HudGlyphs.MakeText("Action", UiColors.HudGreen, 16, FontStyle.Bold);
+            _actionText.rectTransform.SetParent(rt, false);
+            HudGlyphs.Place(_actionText.rectTransform, new Vector2(0f, -47f), new Vector2(260f, 22f));
 
             SetVisible(false);
         }
@@ -128,33 +126,28 @@ namespace NOVor.UI
 
             foreach (float x in new[] { -ScaleHalfWidthPx, -ScaleHalfWidthPx * 0.5f,
                          ScaleHalfWidthPx * 0.5f, ScaleHalfWidthPx })
-            {
-                var dot = MakeCue(scale, "DeviationDot", "•", UiColors.HudGreenDim, new Vector2(x, 0f));
-                dot.fontSize = 14;
-            }
+                HudGlyphs.MakeCue(scale, "DeviationDot", "•", UiColors.HudGreenDim, new Vector2(x, 0f), 14);
 
-            MakeCue(scale, "CenterIndex", "▽", UiColors.HudGreen, Vector2.zero);
+            HudGlyphs.MakeCue(scale, "CenterIndex", "▽", UiColors.HudGreen, Vector2.zero, 16);
 
-            _needle = MakeRect("DeviationNeedle", UiColors.HudGreen);
+            _needle = HudGlyphs.MakeRect("DeviationNeedle", UiColors.HudGreen);
             _needle.SetParent(scale, false);
-            Place(_needle, Vector2.zero, new Vector2(3f, 20f));
+            HudGlyphs.Place(_needle, Vector2.zero, new Vector2(3f, 20f));
 
-            _offScaleLeft = MakeCue(scale, "OffScaleLeft", "◀", UiColors.HudAmber,
-                new Vector2(-(ScaleHalfWidthPx + 18f), 0f));
-            _offScaleRight = MakeCue(scale, "OffScaleRight", "▶", UiColors.HudAmber,
-                new Vector2(ScaleHalfWidthPx + 18f, 0f));
+            _offScaleLeft = HudGlyphs.MakeCue(scale, "OffScaleLeft", HudGlyphs.OffScaleLeft,
+                UiColors.HudAmber, new Vector2(-(ScaleHalfWidthPx + 18f), 0f), 16);
+            _offScaleRight = HudGlyphs.MakeCue(scale, "OffScaleRight", HudGlyphs.OffScaleRight,
+                UiColors.HudAmber, new Vector2(ScaleHalfWidthPx + 18f, 0f), 16);
             _offScaleLeft.color = Hidden;
             _offScaleRight.color = Hidden;
 
-            _scaleLabel = MakeCue(scale, "FullScale", "1NM", UiColors.TextSecondary,
-                new Vector2(ScaleHalfWidthPx + 30f, 10f));
-            _scaleLabel.fontSize = 9;
+            _scaleLabel = HudGlyphs.MakeCue(scale, "FullScale", "1NM", UiColors.TextSecondary,
+                new Vector2(ScaleHalfWidthPx + 30f, 10f), 9);
             _scaleLabel.alignment = TextAnchor.MiddleLeft;
             _scaleLabel.rectTransform.sizeDelta = new Vector2(42f, 16f);
 
-            _toFromFlag = MakeCue(scale, "ToFrom", "▲ TO", UiColors.TextSecondary,
-                new Vector2(-(ScaleHalfWidthPx + 32f), 10f));
-            _toFromFlag.fontSize = 9;
+            _toFromFlag = HudGlyphs.MakeCue(scale, "ToFrom", "▲ TO", UiColors.TextSecondary,
+                new Vector2(-(ScaleHalfWidthPx + 32f), 10f), 9);
             _toFromFlag.alignment = TextAnchor.MiddleRight;
             _toFromFlag.rectTransform.sizeDelta = new Vector2(48f, 16f);
         }
@@ -164,70 +157,8 @@ namespace NOVor.UI
             var go = new GameObject(name, typeof(RectTransform));
             var rt = (RectTransform)go.transform;
             rt.SetParent(parent, false);
-            Place(rt, position, new Vector2(ScaleHalfWidthPx * 2f + 90f, height));
+            HudGlyphs.Place(rt, position, new Vector2(ScaleHalfWidthPx * 2f + 90f, height));
             return rt;
-        }
-
-        private static Text MakeCue(RectTransform parent, string name, string glyph, Color color, Vector2 position)
-        {
-            var rt = MakeText(name, color, 16, FontStyle.Bold);
-            rt.SetParent(parent, false);
-            Place(rt, position, new Vector2(24f, 24f));
-            var text = rt.GetComponent<Text>();
-            text.text = glyph;
-            return text;
-        }
-
-        private static void Place(RectTransform rt, Vector2 position, Vector2 size)
-        {
-            rt.anchorMin = new Vector2(0.5f, 0.5f);
-            rt.anchorMax = new Vector2(0.5f, 0.5f);
-            rt.pivot = new Vector2(0.5f, 0.5f);
-            rt.anchoredPosition = position;
-            rt.sizeDelta = size;
-        }
-
-        private static RectTransform MakeRect(string name, Color color)
-        {
-            var go = new GameObject(name, typeof(RectTransform), typeof(Image));
-            var image = go.GetComponent<Image>();
-            image.color = color;
-            image.raycastTarget = false;
-            AddOutline(image);
-            return (RectTransform)go.transform;
-        }
-
-        private static RectTransform MakeText(string name, Color color, int size, FontStyle style)
-        {
-            var go = new GameObject(name, typeof(RectTransform), typeof(Text));
-            var text = go.GetComponent<Text>();
-            text.font = GetDefaultFont();
-            text.color = color;
-            text.fontSize = size;
-            text.fontStyle = style;
-            text.alignment = TextAnchor.MiddleCenter;
-            text.horizontalOverflow = HorizontalWrapMode.Overflow;
-            text.verticalOverflow = VerticalWrapMode.Overflow;
-            text.raycastTarget = false;
-            AddOutline(text);
-            return (RectTransform)go.transform;
-        }
-
-        private static void AddOutline(Graphic graphic)
-        {
-            var outline = graphic.gameObject.AddComponent<Outline>();
-            outline.effectColor = new Color(0f, 0f, 0f, 0.95f);
-            outline.effectDistance = new Vector2(1f, -1f);
-            outline.useGraphicAlpha = true;
-        }
-
-        private static Font _font;
-        private static Font GetDefaultFont()
-        {
-            if (_font != null) return _font;
-            _font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            if (_font == null) _font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-            return _font;
         }
     }
 }

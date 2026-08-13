@@ -53,38 +53,12 @@ namespace NOVor.UI
             rt.pivot = new Vector2(0.5f, 0.5f);
 
             float quarterHeight = _compass.rectTransform.rect.height * 0.25f;
-            _courseCue = MakeCue("NOVorCourseCue", "▽", UiColors.HudGreen, quarterHeight);
-            _steeringCue = MakeCue("NOVorSteeringCue", "◇", UiColors.HudAmber, -quarterHeight);
-        }
-
-        private Text MakeCue(string name, string glyph, Color color, float y)
-        {
-            var go = new GameObject(name, typeof(RectTransform), typeof(Text));
-            var rt = (RectTransform)go.transform;
-            rt.SetParent(transform, false);
-            rt.anchorMin = new Vector2(0.5f, 0.5f);
-            rt.anchorMax = new Vector2(0.5f, 0.5f);
-            rt.pivot = new Vector2(0.5f, 0.5f);
-            rt.anchoredPosition = new Vector2(0f, y);
-            rt.sizeDelta = new Vector2(24f, 20f);
-
-            var text = go.GetComponent<Text>();
-            text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf")
-                ?? Resources.GetBuiltinResource<Font>("Arial.ttf");
-            text.text = glyph;
-            text.color = color;
-            text.fontSize = 15;
-            text.fontStyle = FontStyle.Bold;
-            text.alignment = TextAnchor.MiddleCenter;
-            text.horizontalOverflow = HorizontalWrapMode.Overflow;
-            text.verticalOverflow = VerticalWrapMode.Overflow;
-            text.raycastTarget = false;
-
-            var outline = go.AddComponent<Outline>();
-            outline.effectColor = new Color(0f, 0f, 0f, 0.95f);
-            outline.effectDistance = new Vector2(1f, -1f);
-            outline.useGraphicAlpha = true;
-            return text;
+            _courseCue = HudGlyphs.MakeCue(rt, "NOVorCourseCue", "▽", UiColors.HudGreen,
+                new Vector2(0f, quarterHeight), 15);
+            _courseCue.rectTransform.sizeDelta = new Vector2(24f, 20f);
+            _steeringCue = HudGlyphs.MakeCue(rt, "NOVorSteeringCue", "◇", UiColors.HudAmber,
+                new Vector2(0f, -quarterHeight), 15);
+            _steeringCue.rectTransform.sizeDelta = new Vector2(24f, 20f);
         }
     }
 }
