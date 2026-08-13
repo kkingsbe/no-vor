@@ -85,12 +85,18 @@ namespace NOVor.UI
             string compact = (value ?? "NAV").ToUpperInvariant()
                 .Replace("ANNEX CLASS CARRIER", "ANNEX CV")
                 .Replace("INTERNATIONAL", "INTL")
-                .Replace("AIRFIELD", "FLD")
+                .Replace("AIRFIELD", "")
+                .Replace("AIRSTRIP", "")
+                .Replace("AIRPORT", "")
                 .Replace("AIRBASE", "")
                 .Trim();
             while (compact.Contains("  ")) compact = compact.Replace("  ", " ");
-            if (compact.Length > 10) compact = compact.Substring(0, 10).TrimEnd();
-            return compact.Length > 0 ? compact : "NAV";
+            if (compact.Length > 12)
+            {
+                int cut = compact.LastIndexOf(' ', 12);
+                compact = cut > 3 ? compact.Substring(0, cut) : compact.Substring(0, 12);
+            }
+            return compact.Trim().Length > 0 ? compact.Trim() : "NAV";
         }
 
         private static string FormatRange(float distanceNm)

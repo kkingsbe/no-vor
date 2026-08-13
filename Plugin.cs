@@ -28,6 +28,7 @@ namespace NOVor
         internal static ConfigEntry<KeyboardShortcut> HudNudgeRightKey;
         internal static ConfigEntry<KeyboardShortcut> CourseDecreaseKey;
         internal static ConfigEntry<KeyboardShortcut> CourseIncreaseKey;
+        internal static ConfigEntry<KeyboardShortcut> DirectToKey;
         internal static ConfigEntry<bool> CourseModeManual;
         internal static ConfigEntry<float> DefaultManualCourse;
         internal static ConfigEntry<float> CourseStep;
@@ -61,6 +62,8 @@ namespace NOVor
                 "Decrease the manual course (switches to manual course mode).");
             CourseIncreaseKey = Config.Bind("Hotkeys", "CourseIncrease", new KeyboardShortcut(KeyCode.RightBracket),
                 "Increase the manual course (switches to manual course mode).");
+            DirectToKey = Config.Bind("Hotkeys", "DirectTo", new KeyboardShortcut(KeyCode.Backslash),
+                "Set the manual course to the current bearing to the selected field.");
 
             CourseModeManual = Config.Bind("Navigation", "ManualCourseByDefault", false,
                 "Start in manual course mode instead of automatic direct-to-airport.");

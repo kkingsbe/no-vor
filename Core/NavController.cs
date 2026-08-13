@@ -256,6 +256,7 @@ namespace NOVor
             if (Plugin.ToggleMenuKey.Value.IsDown()) _panel?.Toggle();
             if (Plugin.CourseDecreaseKey.Value.IsDown()) AdjustCourse(-Plugin.CourseStep.Value);
             if (Plugin.CourseIncreaseKey.Value.IsDown()) AdjustCourse(Plugin.CourseStep.Value);
+            if (Plugin.DirectToKey.Value.IsDown()) SetManualCourse(Data.Bearing);
 
             float step = Plugin.HudNudgeStep.Value;
             if (Plugin.HudNudgeUpKey.Value.IsDown()) NudgeInstrument(0f, step);
