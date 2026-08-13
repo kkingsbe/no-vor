@@ -39,7 +39,10 @@ dotnet build NOVor.csproj -c Debug
 | `Core/NavMath.cs` | dependency-free angle, deviation, steering, and ETA math |
 | `Core/CdiData.cs` | live HSI/CDI flight data |
 | `Core/NavModels.cs` | course/sort modes and airport/runway models |
-| `UI/CdiInstrument.cs` | green cockpit HUD CDI |
+| `Core/CdiScale.cs` | range-based CDI scaling, off-scale state, and intercept guidance |
+| `UI/CockpitHud.cs` | single owner of both cockpit surfaces (block and native tape cues) |
+| `UI/HudGlyphs.cs` | shared cockpit font, outline, and glyph construction |
+| `UI/CdiInstrument.cs` | green cockpit HUD CDI block (linear cues and text rows) |
 | `UI/NavPanel.cs` | landscape airport/course panel |
 | `UI/PanelHsi.cs` | compass card, pointers, CDI bar, and TO/FROM output |
 | `UI/HsiCourseSelector.cs` | HSI twist-drag and scroll input |
@@ -60,6 +63,8 @@ dotnet build NOVor.csproj -c Debug
 - Panel toolbars and tab rows are fixed-height; only the main body and HSI well may expand vertically.
 - Panel instrument surfaces are opaque, active filters use thin amber rails, and the HSI labels direct-to guidance as bearing rather than course.
 - Preserve complete cleanup for hot reload: restore cursor/camera state and destroy owned UI/EventSystem objects.
+- `NavController` owns exactly one cockpit component (`CockpitHud`); per-surface construction, visibility, and teardown live inside it.
+- Cockpit glyphs are built through `HudGlyphs` so font resolution, outlining, and off-scale symbology stay identical across surfaces.
 
 ## Game API Patterns
 
@@ -71,8 +76,10 @@ dotnet build NOVor.csproj -c Debug
 - Runway heading/name/length: `GetDirection`, `GetName`, and `Length`.
 - `NavMath` owns TO/FROM, signed cross-track, steering-error, drift-corrected heading, and relative-closure ETA semantics.
 - Direct-to cockpit guidance uses separate bearing and drift-corrected steering cues; it does not drive the CDI bar with heading error.
-- MANUAL cockpit guidance uses a distance-scaled CDI. Positive cross-track means the aircraft is right of course; the needle always moves toward the desired course.
-- `Navigation.FullDeflectionNauticalMiles` controls MANUAL CDI sensitivity and defaults to 1 NM.
+- `CdiScale` owns CDI sensitivity: 5 NM enroute, 1 NM within 30 NM, and 0.3 NM within 2 NM, with hysteresis so the scale does not flutter at a threshold. `Navigation.AutoScaleCdi` disables it and falls back to `Navigation.FullDeflectionNauticalMiles`.
+- MANUAL cockpit guidance uses a range-scaled CDI. Positive cross-track means the aircraft is right of course; the needle always moves toward the desired course. When cross-track exceeds full scale the needle is suppressed, one amber edge arrow lights, and the action line commands an intercept heading capped by `Navigation.MaxInterceptDegrees`.
+- Both cockpit surfaces share one off-scale convention: the moving element is suppressed or clamped and a filled amber arrow marks the side.
+- The cockpit block annunciates the active scale (`ENR`/`TERM`/`APP`/`FIX`), selected course or bearing, and ETA with groundspeed.
 - The course caret and distinct steering diamond are children of `FlightHud`'s native `compass` RawImage; their positions use the native tape's current UV span and rect width.
 - The MANUAL CDI labels its nautical-mile full scale, separates TO/FROM from prose, and replaces a pegged needle with an amber edge flag when cross-track is off scale.
 - All cockpit HUD graphics use black outlines for sky contrast, and the default navigation block sits 180 px below HUD center.
@@ -84,6 +91,7 @@ dotnet build NOVor.csproj -c Debug
 - `C`: toggle cockpit HUD CDI
 - `F9`: toggle navigation panel
 - `[` / `]`: decrease / increase manual course
+- `\`: set manual course direct to the selected field's current bearing
 - `Ctrl+Arrow`: nudge cockpit HUD CDI position
 
 ## Commit Style
