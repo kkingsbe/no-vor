@@ -4,18 +4,24 @@ namespace NOVor.UI
 {
     internal static class UiColors
     {
-        public static readonly Color Chrome = Hex(0x101312, 0.55f);
-        public static readonly Color ChromeRaised = Hex(0x191d1c, 0.84f);
-        public static readonly Color InstrumentWell = Hex(0x080b0a, 0.40f);
-        public static readonly Color RowSurface = Hex(0x070a09, 0.45f);
+        public static readonly Color Chrome = Hex(0x101312);
+        public static readonly Color ChromeRaised = Hex(0x191d1c);
+        public static readonly Color InstrumentWell = Hex(0x080b0a);
+        public static readonly Color RowSurface = Hex(0x070a09);
         public static readonly Color Rule = Hex(0x3b403e);
         public static readonly Color Amber = Hex(0xe3a64b);
         public static readonly Color AmberDim = Hex(0x78562c, 0.72f);
-        public static readonly Color SelectionFill = Hex(0x8b541d, 0.86f);
+        public static readonly Color SelectionSurface = Hex(0x29241a);
         public static readonly Color PanelText = Hex(0xd8ddd9);
         public static readonly Color PanelMuted = Hex(0x8b928e);
+        public static readonly Color PanelFaint = Hex(0x5f6a64);
         public static readonly Color OnAmber = Hex(0x17120a);
         public static readonly Color Transparent = new Color(0f, 0f, 0f, 0f);
+
+        public static readonly Color FactionFriendly = Hex(0x4f8fe0);
+        public static readonly Color FactionEnemy = Hex(0xe0554f);
+        public static readonly Color FactionUnknown = Hex(0x8b928e);
+        public static readonly Color MovAccent = Hex(0x56c8d6);
 
         public static readonly Color HudGreen = Hex(0x33ff99);
         public static readonly Color HudGreenDim = Hex(0x1a8a55, 0.55f);

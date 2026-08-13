@@ -21,15 +21,25 @@ namespace NOVor.Core
             return Math.Abs(DeltaAngleDegrees(course, bearingToStation)) <= 90d;
         }
 
-        public static double CourseDeviationDegrees(double course, double bearingToStation)
+        public static double CrossTrackMeters(double course, double aircraftEastOfStation,
+            double aircraftNorthOfStation)
         {
-            double reference = IsToStation(course, bearingToStation) ? course : course + 180d;
-            return DeltaAngleDegrees(reference, bearingToStation);
+            double radians = course * Math.PI / 180d;
+            double rightEast = Math.Cos(radians);
+            double rightNorth = -Math.Sin(radians);
+            return aircraftEastOfStation * rightEast + aircraftNorthOfStation * rightNorth;
         }
 
-        public static double SteeringDeviationDegrees(double heading, double steerHeading)
+        public static double CrossTrackDeflection(double crossTrackMeters, double fullDeflectionMeters)
         {
-            return DeltaAngleDegrees(steerHeading, heading);
+            if (fullDeflectionMeters <= 0d) return 0d;
+            double deflection = -crossTrackMeters / fullDeflectionMeters;
+            return Math.Max(-1d, Math.Min(1d, deflection));
+        }
+
+        public static double SteeringErrorDegrees(double heading, double steerHeading)
+        {
+            return DeltaAngleDegrees(heading, steerHeading);
         }
 
         public static double DriftCorrectedHeadingDegrees(double bearingToStation, double heading, double groundTrack)

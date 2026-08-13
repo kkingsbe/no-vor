@@ -6,7 +6,9 @@ namespace NOVor.Core
         public float GroundTrack;
         public float Bearing;
         public float Course;
-        public float Deviation;
+        public float CrossTrackNm;
+        public float FullScaleNm;
+        public float SteeringError;
         public float Deflection;
         public float DistanceNm;
         public float SteerHeading;

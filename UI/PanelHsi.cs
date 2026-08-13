@@ -66,13 +66,17 @@ namespace NOVor.UI
         public void SetData(CdiData data)
         {
             if (_compassCard == null) return;
+            bool manual = data.Mode == CourseMode.Manual;
             _compassCard.localEulerAngles = new Vector3(0f, 0f, data.Heading);
             _bearingPointer.localEulerAngles = new Vector3(0f, 0f, -(data.Bearing - data.Heading));
             _courseAssembly.localEulerAngles = new Vector3(0f, 0f, -(data.Course - data.Heading));
-            _deviationBar.anchoredPosition = new Vector2(-data.Deflection * _size * 0.22f, 0f);
-            _courseReadout.text = $"CRS {Mathf.RoundToInt(data.Course):000}°";
-            _toFromFlag.text = data.ToStation ? "TO" : "FR";
-            _toFromFlag.color = data.ToStation ? UiColors.Amber : UiColors.PanelMuted;
+            _deviationBar.gameObject.SetActive(manual);
+            _deviationBar.anchoredPosition = new Vector2(data.Deflection * _size * 0.22f, 0f);
+            _courseReadout.text = manual
+                ? $"CRS {Mathf.RoundToInt(data.Course):000}°"
+                : $"BRG {Mathf.RoundToInt(data.Bearing):000}°";
+            _toFromFlag.text = manual ? data.ToStation ? "TO" : "FR" : "DIR";
+            _toFromFlag.color = manual && !data.ToStation ? UiColors.PanelMuted : UiColors.Amber;
         }
 
         private void BuildCompassCard(RectTransform parent)

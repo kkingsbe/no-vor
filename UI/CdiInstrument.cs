@@ -6,17 +6,16 @@ namespace NOVor.UI
 {
     public class CdiInstrument : MonoBehaviour
     {
-        private const float NeedleTravelPx = 80f;
         private const float ScaleHalfWidthPx = 90f;
+        private static readonly Color Hidden = new Color(0f, 0f, 0f, 0f);
 
-        // Inactive steer arrows are fully hidden: parked next to the outer scale ticks
-        // they read as stray glyphs ("<1") wherever the instrument sits on screen.
-        private static readonly Color ArrowHidden = new Color(0f, 0f, 0f, 0f);
-
-        private Text _dataText;
-        private Text _subText;
-        private Text _steerLeft;
-        private Text _steerRight;
+        private Text _fieldText;
+        private Text _actionText;
+        private GameObject _manualGroup;
+        private Text _offScaleLeft;
+        private Text _offScaleRight;
+        private Text _scaleLabel;
+        private Text _toFromFlag;
         private RectTransform _needle;
 
         public void ApplyOffsets(float x, float y)
@@ -34,26 +33,64 @@ namespace NOVor.UI
         {
             if (!isActiveAndEnabled) return;
 
-            string modeTag = data.Mode == CourseMode.Manual ? "MAN" : "AUTO";
-            _dataText.text =
-                $"{data.AirportName}  [{index + 1}/{count}]  {modeTag} · " +
-                $"BRG {Mathf.RoundToInt(data.Bearing):000}° {data.DistanceNm:F1}NM · " +
-                $"CRS {Mathf.RoundToInt(data.Course):000}° {(data.ToStation ? "TO" : "FR")}";
-            _subText.text =
-                $"HDG {Mathf.RoundToInt(data.Heading):000}° · " +
-                $"DEV {Mathf.RoundToInt(data.Deviation):+#;-#;0}° · " +
-                $"STEER {Mathf.RoundToInt(data.SteerHeading):000}°";
+            bool manual = data.Mode == CourseMode.Manual;
+            _manualGroup.SetActive(manual);
+            _fieldText.text = CompactFieldName(data.AirportName) + "  " + FormatRange(data.DistanceNm);
 
-            if (_needle != null)
-                _needle.anchoredPosition = new Vector2(-data.Deflection * NeedleTravelPx, 0f);
+            if (manual)
+                SetManualData(data);
+            else
+                SetAutoData(data);
+        }
 
-            // Steer arrows light up amber at near-full deflection, toward the needle side.
-            bool steerLeft = data.Deflection >= 0.95f;
-            bool steerRight = data.Deflection <= -0.95f;
-            if (_steerLeft != null)
-                _steerLeft.color = steerLeft ? UiColors.HudAmber : ArrowHidden;
-            if (_steerRight != null)
-                _steerRight.color = steerRight ? UiColors.HudAmber : ArrowHidden;
+        private void SetManualData(CdiData data)
+        {
+            float magnitude = Mathf.Abs(data.CrossTrackNm);
+            string side = data.CrossTrackNm > 0.005f ? "R" : data.CrossTrackNm < -0.005f ? "L" : "ON";
+            _actionText.text = "XTK " + FormatCrossTrack(magnitude) + " " + side;
+
+            bool offScale = data.FullScaleNm > 0f && magnitude >= data.FullScaleNm;
+            _needle.gameObject.SetActive(!offScale);
+            _needle.anchoredPosition = new Vector2(data.Deflection * ScaleHalfWidthPx, 0f);
+            _offScaleLeft.color = offScale && data.Deflection < 0f ? UiColors.HudAmber : Hidden;
+            _offScaleRight.color = offScale && data.Deflection > 0f ? UiColors.HudAmber : Hidden;
+            _scaleLabel.text = FormatScale(data.FullScaleNm);
+            _toFromFlag.text = data.ToStation ? "▲ TO" : "▼ FR";
+        }
+
+        private void SetAutoData(CdiData data)
+        {
+            string command = data.SteeringError > 0.5f ? "R" : data.SteeringError < -0.5f ? "L" : "ON";
+            _actionText.text = "CMD " + Mathf.Abs(data.SteeringError).ToString("F0") + "° " + command;
+        }
+
+        private static string CompactFieldName(string value)
+        {
+            string compact = (value ?? "NAV").ToUpperInvariant()
+                .Replace("ANNEX CLASS CARRIER", "ANNEX CV")
+                .Replace("INTERNATIONAL", "INTL")
+                .Replace("AIRFIELD", "FLD")
+                .Replace("AIRBASE", "")
+                .Trim();
+            while (compact.Contains("  ")) compact = compact.Replace("  ", " ");
+            if (compact.Length > 10) compact = compact.Substring(0, 10).TrimEnd();
+            return compact.Length > 0 ? compact : "NAV";
+        }
+
+        private static string FormatRange(float distanceNm)
+        {
+            return distanceNm < 100f ? distanceNm.ToString("F1") + "NM" : distanceNm.ToString("F0") + "NM";
+        }
+
+        private static string FormatCrossTrack(float crossTrackNm)
+        {
+            return (crossTrackNm < 10f ? crossTrackNm.ToString("F1") : crossTrackNm.ToString("F0")) + "NM";
+        }
+
+        private static string FormatScale(float fullScaleNm)
+        {
+            string value = fullScaleNm < 10f ? fullScaleNm.ToString("0.#") : fullScaleNm.ToString("F0");
+            return value + "NM";
         }
 
         private void Awake()
@@ -67,95 +104,96 @@ namespace NOVor.UI
             rt.anchorMin = new Vector2(0.5f, 0.5f);
             rt.anchorMax = new Vector2(0.5f, 0.5f);
             rt.pivot = new Vector2(0.5f, 0.5f);
-            rt.sizeDelta = new Vector2(360f, 90f);
+            rt.sizeDelta = new Vector2(320f, 118f);
 
-            var data = MakeText("DataLine", UiColors.HudGreen, 14, FontStyle.Bold);
-            data.SetParent(rt, false);
-            data.anchorMin = new Vector2(0.5f, 0.5f);
-            data.anchorMax = new Vector2(0.5f, 0.5f);
-            data.pivot = new Vector2(0.5f, 0.5f);
-            data.anchoredPosition = new Vector2(0f, 34f);
-            data.sizeDelta = new Vector2(360f, 20f);
-            _dataText = data.GetComponent<Text>();
+            var field = MakeText("FieldRange", UiColors.TextSecondary, 12, FontStyle.Bold);
+            field.SetParent(rt, false);
+            Place(field, new Vector2(0f, 48f), new Vector2(260f, 18f));
+            _fieldText = field.GetComponent<Text>();
 
-            var sub = MakeText("SubLine", UiColors.TextMuted, 11, FontStyle.Normal);
-            sub.SetParent(rt, false);
-            sub.anchorMin = new Vector2(0.5f, 0.5f);
-            sub.anchorMax = new Vector2(0.5f, 0.5f);
-            sub.pivot = new Vector2(0.5f, 0.5f);
-            sub.anchoredPosition = new Vector2(0f, -26f);
-            sub.sizeDelta = new Vector2(360f, 16f);
-            _subText = sub.GetComponent<Text>();
+            BuildManualScale(rt);
 
-            BuildScale(rt);
+            var action = MakeText("Action", UiColors.HudGreen, 16, FontStyle.Bold);
+            action.SetParent(rt, false);
+            Place(action, new Vector2(0f, -47f), new Vector2(260f, 22f));
+            _actionText = action.GetComponent<Text>();
+
             SetVisible(false);
         }
 
-        private void BuildScale(RectTransform parent)
+        private void BuildManualScale(RectTransform parent)
         {
-            var scale = new GameObject("Scale", typeof(RectTransform));
-            var scaleRt = (RectTransform)scale.transform;
-            scaleRt.SetParent(parent, false);
-            scaleRt.anchorMin = new Vector2(0.5f, 0.5f);
-            scaleRt.anchorMax = new Vector2(0.5f, 0.5f);
-            scaleRt.pivot = new Vector2(0.5f, 0.5f);
-            scaleRt.anchoredPosition = new Vector2(0f, 2f);
-            scaleRt.sizeDelta = new Vector2(ScaleHalfWidthPx * 2f + 40f, 24f);
+            var scale = MakeGroup(parent, "ManualCdi", new Vector2(0f, -10f), 24f);
+            _manualGroup = scale.gameObject;
 
-            float[] ticks = { -1f, -0.5f, 0.5f, 1f };
-            foreach (var t in ticks)
+            foreach (float x in new[] { -ScaleHalfWidthPx, -ScaleHalfWidthPx * 0.5f,
+                         ScaleHalfWidthPx * 0.5f, ScaleHalfWidthPx })
             {
-                var tick = MakeRect("Tick", UiColors.HudGreen);
-                tick.SetParent(scaleRt, false);
-                tick.anchorMin = new Vector2(0.5f, 0.5f);
-                tick.anchorMax = new Vector2(0.5f, 0.5f);
-                tick.pivot = new Vector2(0.5f, 0.5f);
-                tick.sizeDelta = new Vector2(2f, 8f);
-                tick.anchoredPosition = new Vector2(t * ScaleHalfWidthPx, 0f);
+                var dot = MakeCue(scale, "DeviationDot", "•", UiColors.HudGreenDim, new Vector2(x, 0f));
+                dot.fontSize = 14;
             }
 
-            // Center marker: taller, brighter caret marking the selected course.
-            var center = MakeRect("CenterMarker", UiColors.HudGreen);
-            center.SetParent(scaleRt, false);
-            center.anchorMin = new Vector2(0.5f, 0.5f);
-            center.anchorMax = new Vector2(0.5f, 0.5f);
-            center.pivot = new Vector2(0.5f, 0.5f);
-            center.sizeDelta = new Vector2(3f, 14f);
-            center.anchoredPosition = Vector2.zero;
+            MakeCue(scale, "CenterIndex", "▽", UiColors.HudGreen, Vector2.zero);
 
-            var needle = MakeRect("Needle", UiColors.HudAmber);
-            _needle = needle;
-            needle.SetParent(scaleRt, false);
-            needle.anchorMin = new Vector2(0.5f, 0.5f);
-            needle.anchorMax = new Vector2(0.5f, 0.5f);
-            needle.pivot = new Vector2(0.5f, 0.5f);
-            needle.sizeDelta = new Vector2(3f, 22f);
-            needle.anchoredPosition = Vector2.zero;
+            _needle = MakeRect("DeviationNeedle", UiColors.HudGreen);
+            _needle.SetParent(scale, false);
+            Place(_needle, Vector2.zero, new Vector2(3f, 20f));
 
-            _steerLeft = MakeArrow(scaleRt, "SteerLeft", "<", -(ScaleHalfWidthPx + 26f));
-            _steerRight = MakeArrow(scaleRt, "SteerRight", ">", ScaleHalfWidthPx + 26f);
+            _offScaleLeft = MakeCue(scale, "OffScaleLeft", "◀", UiColors.HudAmber,
+                new Vector2(-(ScaleHalfWidthPx + 18f), 0f));
+            _offScaleRight = MakeCue(scale, "OffScaleRight", "▶", UiColors.HudAmber,
+                new Vector2(ScaleHalfWidthPx + 18f, 0f));
+            _offScaleLeft.color = Hidden;
+            _offScaleRight.color = Hidden;
+
+            _scaleLabel = MakeCue(scale, "FullScale", "1NM", UiColors.TextSecondary,
+                new Vector2(ScaleHalfWidthPx + 30f, 10f));
+            _scaleLabel.fontSize = 9;
+            _scaleLabel.alignment = TextAnchor.MiddleLeft;
+            _scaleLabel.rectTransform.sizeDelta = new Vector2(42f, 16f);
+
+            _toFromFlag = MakeCue(scale, "ToFrom", "▲ TO", UiColors.TextSecondary,
+                new Vector2(-(ScaleHalfWidthPx + 32f), 10f));
+            _toFromFlag.fontSize = 9;
+            _toFromFlag.alignment = TextAnchor.MiddleRight;
+            _toFromFlag.rectTransform.sizeDelta = new Vector2(48f, 16f);
         }
 
-        private static Text MakeArrow(RectTransform parent, string name, string glyph, float x)
+        private static RectTransform MakeGroup(RectTransform parent, string name, Vector2 position, float height)
         {
-            var rt = MakeText(name, ArrowHidden, 16, FontStyle.Bold);
+            var go = new GameObject(name, typeof(RectTransform));
+            var rt = (RectTransform)go.transform;
             rt.SetParent(parent, false);
-            rt.anchorMin = new Vector2(0.5f, 0.5f);
-            rt.anchorMax = new Vector2(0.5f, 0.5f);
-            rt.pivot = new Vector2(0.5f, 0.5f);
-            rt.sizeDelta = new Vector2(20f, 22f);
-            rt.anchoredPosition = new Vector2(x, 0f);
+            Place(rt, position, new Vector2(ScaleHalfWidthPx * 2f + 90f, height));
+            return rt;
+        }
+
+        private static Text MakeCue(RectTransform parent, string name, string glyph, Color color, Vector2 position)
+        {
+            var rt = MakeText(name, color, 16, FontStyle.Bold);
+            rt.SetParent(parent, false);
+            Place(rt, position, new Vector2(24f, 24f));
             var text = rt.GetComponent<Text>();
             text.text = glyph;
             return text;
         }
 
+        private static void Place(RectTransform rt, Vector2 position, Vector2 size)
+        {
+            rt.anchorMin = new Vector2(0.5f, 0.5f);
+            rt.anchorMax = new Vector2(0.5f, 0.5f);
+            rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.anchoredPosition = position;
+            rt.sizeDelta = size;
+        }
+
         private static RectTransform MakeRect(string name, Color color)
         {
             var go = new GameObject(name, typeof(RectTransform), typeof(Image));
-            var img = go.GetComponent<Image>();
-            img.color = color;
-            img.raycastTarget = false;
+            var image = go.GetComponent<Image>();
+            image.color = color;
+            image.raycastTarget = false;
+            AddOutline(image);
             return (RectTransform)go.transform;
         }
 
@@ -171,7 +209,16 @@ namespace NOVor.UI
             text.horizontalOverflow = HorizontalWrapMode.Overflow;
             text.verticalOverflow = VerticalWrapMode.Overflow;
             text.raycastTarget = false;
+            AddOutline(text);
             return (RectTransform)go.transform;
+        }
+
+        private static void AddOutline(Graphic graphic)
+        {
+            var outline = graphic.gameObject.AddComponent<Outline>();
+            outline.effectColor = new Color(0f, 0f, 0f, 0.95f);
+            outline.effectDistance = new Vector2(1f, -1f);
+            outline.useGraphicAlpha = true;
         }
 
         private static Font _font;

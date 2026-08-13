@@ -15,9 +15,10 @@ namespace NOVor
         internal static ConfigEntry<KeyboardShortcut> PrevAirportKey;
         internal static ConfigEntry<KeyboardShortcut> ToggleHudKey;
         internal static ConfigEntry<KeyboardShortcut> ToggleMenuKey;
-        internal static ConfigEntry<float> FullDeflectionDeg;
+        internal static ConfigEntry<float> FullDeflectionNm;
         internal static ConfigEntry<float> HudOffsetX;
         internal static ConfigEntry<float> HudOffsetY;
+        internal static ConfigEntry<int> HudLayoutVersion;
         internal static ConfigEntry<float> HudNudgeStep;
         internal static ConfigEntry<KeyboardShortcut> HudNudgeUpKey;
         internal static ConfigEntry<KeyboardShortcut> HudNudgeDownKey;
@@ -68,15 +69,23 @@ namespace NOVor
                 new ConfigDescription("Course change per key press, in degrees.",
                     new AcceptableValueRange<float>(1f, 30f)));
 
-            FullDeflectionDeg = Config.Bind("Navigation", "FullDeflectionDegrees", 10f,
-                new ConfigDescription("Degrees of course deviation that moves the CDI needle to full deflection.",
-                    new AcceptableValueRange<float>(1f, 90f)));
+            FullDeflectionNm = Config.Bind("Navigation", "FullDeflectionNauticalMiles", 1f,
+                new ConfigDescription("Cross-track distance in nautical miles that moves the manual CDI to full deflection.",
+                    new AcceptableValueRange<float>(0.1f, 10f)));
             HudOffsetX = Config.Bind("Hud", "OffsetX", 0f,
                 new ConfigDescription("Horizontal offset of the CDI instrument from HUD center (screen px).",
                     new AcceptableValueRange<float>(-800f, 800f)));
-            HudOffsetY = Config.Bind("Hud", "OffsetY", 180f,
+            HudOffsetY = Config.Bind("Hud", "OffsetY", -180f,
                 new ConfigDescription("Vertical offset of the CDI instrument from HUD center (screen px).",
                     new AcceptableValueRange<float>(-800f, 800f)));
+            HudLayoutVersion = Config.Bind("Hud", "LayoutVersion", 1,
+                "Internal HUD layout migration version.");
+            if (HudLayoutVersion.Value < 2)
+            {
+                if (Mathf.Approximately(HudOffsetY.Value, 180f))
+                    HudOffsetY.Value = -180f;
+                HudLayoutVersion.Value = 2;
+            }
             HudNudgeStep = Config.Bind("Hud", "NudgeStep", 20f,
                 new ConfigDescription("Pixels the CDI instrument moves per nudge hotkey press.",
                     new AcceptableValueRange<float>(1f, 200f)));

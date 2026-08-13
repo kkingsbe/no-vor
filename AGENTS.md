@@ -57,6 +57,8 @@ dotnet build NOVor.csproj -c Debug
 - The panel owns no game assembly types. It consumes Core models and emits C# events consumed by `NavController`.
 - Optional integrations must fail safely through reflection and exception guards.
 - The standalone panel uses dark neutral chrome and amber state. The independent cockpit HUD remains phosphor green.
+- Panel toolbars and tab rows are fixed-height; only the main body and HSI well may expand vertically.
+- Panel instrument surfaces are opaque, active filters use thin amber rails, and the HSI labels direct-to guidance as bearing rather than course.
 - Preserve complete cleanup for hot reload: restore cursor/camera state and destroy owned UI/EventSystem objects.
 
 ## Game API Patterns
@@ -67,8 +69,14 @@ dotnet build NOVor.csproj -c Debug
 - Ownership: `Airbase.CurrentHQ.faction`; friendly matches `_aircraft.Player.HQ.faction`.
 - Mobile fields: `Airbase.AttachedAirbase`; target velocity comes from `Airbase.Runway.GetVelocity()`.
 - Runway heading/name/length: `GetDirection`, `GetName`, and `Length`.
-- `NavMath` owns TO/FROM, course deviation, drift-corrected heading, and relative-closure ETA semantics.
-- Navigation distances display in nautical miles. Runway length and field elevation remain metric.
+- `NavMath` owns TO/FROM, signed cross-track, steering-error, drift-corrected heading, and relative-closure ETA semantics.
+- Direct-to cockpit guidance uses separate bearing and drift-corrected steering cues; it does not drive the CDI bar with heading error.
+- MANUAL cockpit guidance uses a distance-scaled CDI. Positive cross-track means the aircraft is right of course; the needle always moves toward the desired course.
+- `Navigation.FullDeflectionNauticalMiles` controls MANUAL CDI sensitivity and defaults to 1 NM.
+- The course caret and distinct steering diamond are children of `FlightHud`'s native `compass` RawImage; their positions use the native tape's current UV span and rect width.
+- The MANUAL CDI labels its nautical-mile full scale, separates TO/FROM from prose, and replaces a pegged needle with an amber edge flag when cross-track is off scale.
+- All cockpit HUD graphics use black outlines for sky contrast, and the default navigation block sits 180 px below HUD center.
+- Navigation distances, runway length, and groundspeed use nautical miles and knots. Field elevation remains metric (meters).
 
 ## Default Hotkeys
 

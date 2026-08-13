@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
+using UnityEngine.UI;
 using NOVor.Core;
 using NOVor.UI;
 using NOVor.Integrations;
@@ -11,7 +12,6 @@ namespace NOVor
     public class NavController : MonoBehaviour
     {
         private const float AirbaseRefreshInterval = 1f;
-        private static readonly Color FallbackFactionColor = new Color(0.35f, 0.37f, 0.36f, 1f);
 
         private readonly List<Airbase> _airbases = new List<Airbase>();
         private float _refreshTimer;
@@ -19,6 +19,7 @@ namespace NOVor
         private Aircraft _aircraft;
         private bool _hudVisible = true;
         private CdiInstrument _instrument;
+        private HeadingTapeCues _headingTapeCues;
         private NavPanel _panel;
         private CourseMode _mode = CourseMode.Auto;
         private float _manualCourse;
@@ -74,6 +75,7 @@ namespace NOVor
                 EnsureInstrument();
                 SetInstrumentVisible(_hudVisible);
                 _instrument?.SetData(Data, _selectedIndex, _airbases.Count);
+                _headingTapeCues?.SetData(Data);
                 _panel?.SetNavigation(Data);
             }
             else
@@ -128,7 +130,7 @@ namespace NOVor
                     IsMobile = ab.AttachedAirbase,
                     HasFaction = faction != null,
                     IsFriendly = faction != null && localFaction != null && faction == localFaction,
-                    FactionColor = faction != null ? faction.color : FallbackFactionColor,
+                    FactionColor = ResolveFactionColor(localFaction, faction),
                     FactionTag = faction != null ? faction.factionTag : "---"
                 };
                 if (pos.HasValue && ab.center != null)
@@ -241,6 +243,12 @@ namespace NOVor
             return raw.Replace("(Clone)", "").Trim();
         }
 
+        private static Color ResolveFactionColor(Faction localFaction, Faction targetFaction)
+        {
+            if (targetFaction == null || localFaction == null) return UiColors.FactionUnknown;
+            return targetFaction == localFaction ? UiColors.FactionFriendly : UiColors.FactionEnemy;
+        }
+
         private void HandleInput()
         {
             if (Plugin.NextAirportKey.Value.IsDown()) CycleAirport(1);
@@ -333,10 +341,13 @@ namespace NOVor
             Data.Course = _mode == CourseMode.Manual ? _manualCourse : bearing;
             Data.ToStation = NavMath.IsToStation(Data.Course, bearing);
             Data.SteerHeading = (float)NavMath.DriftCorrectedHeadingDegrees(bearing, heading, groundTrack);
-            Data.Deviation = _mode == CourseMode.Manual
-                ? (float)NavMath.CourseDeviationDegrees(Data.Course, bearing)
-                : (float)NavMath.SteeringDeviationDegrees(heading, Data.SteerHeading);
-            Data.Deflection = Mathf.Clamp(Data.Deviation / Plugin.FullDeflectionDeg.Value, -1f, 1f);
+            Data.SteeringError = (float)NavMath.SteeringErrorDegrees(heading, Data.SteerHeading);
+            float crossTrackMeters = (float)NavMath.CrossTrackMeters(Data.Course, -horizontal.x, -horizontal.z);
+            Data.CrossTrackNm = crossTrackMeters / 1852f;
+            Data.FullScaleNm = Plugin.FullDeflectionNm.Value;
+            Data.Deflection = _mode == CourseMode.Manual
+                ? (float)NavMath.CrossTrackDeflection(crossTrackMeters, Plugin.FullDeflectionNm.Value * 1852f)
+                : 0f;
             Data.GroundSpeedKnots = horizontalSpeed * 1.9438445f;
             Data.HasEta = !double.IsNaN(eta) && !double.IsInfinity(eta);
             Data.EtaSeconds = Data.HasEta ? (float)eta : 0f;
@@ -344,12 +355,13 @@ namespace NOVor
 
         private void EnsureInstrument()
         {
-            if (_instrument != null) return;
+            if (_instrument != null && _headingTapeCues != null) return;
 
+            FlightHud hud = null;
             Transform hudCenter = null;
             try
             {
-                var hud = SceneSingleton<FlightHud>.i;
+                hud = SceneSingleton<FlightHud>.i;
                 if (hud != null) hudCenter = hud.GetHUDCenter();
             }
             catch
@@ -359,15 +371,33 @@ namespace NOVor
 
             if (hudCenter == null) return;
 
-            var host = new GameObject("NOVorCdiInstrument", typeof(RectTransform));
-            host.transform.SetParent(hudCenter, false);
-            _instrument = host.AddComponent<CdiInstrument>();
-            _instrument.ApplyOffsets(Plugin.HudOffsetX.Value, Plugin.HudOffsetY.Value);
+            if (_instrument == null)
+            {
+                var host = new GameObject("NOVorCdiInstrument", typeof(RectTransform));
+                host.transform.SetParent(hudCenter, false);
+                _instrument = host.AddComponent<CdiInstrument>();
+                _instrument.ApplyOffsets(Plugin.HudOffsetX.Value, Plugin.HudOffsetY.Value);
+            }
+
+            if (_headingTapeCues == null)
+            {
+                var compassField = typeof(FlightHud).GetField("compass",
+                    BindingFlags.NonPublic | BindingFlags.Instance);
+                var compass = compassField?.GetValue(hud) as RawImage;
+                if (compass != null)
+                {
+                    var cuesHost = new GameObject("NOVorNativeHeadingTapeCues", typeof(RectTransform));
+                    cuesHost.transform.SetParent(compass.rectTransform, false);
+                    _headingTapeCues = cuesHost.AddComponent<HeadingTapeCues>();
+                    _headingTapeCues.Initialize(compass);
+                }
+            }
         }
 
         private void SetInstrumentVisible(bool visible)
         {
             if (_instrument != null) _instrument.SetVisible(visible);
+            if (_headingTapeCues != null) _headingTapeCues.SetVisible(visible);
         }
 
         private void BlockCameraInputs()
@@ -442,6 +472,7 @@ namespace NOVor
             RestoreCameraInputs();
             ModBarBridge.Unregister("no.vor");
             if (_instrument != null) Destroy(_instrument.gameObject);
+            if (_headingTapeCues != null) Destroy(_headingTapeCues.gameObject);
             if (_panel != null) _panel.Destroy();
         }
     }
