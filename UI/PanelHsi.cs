@@ -73,10 +73,21 @@ namespace NOVor.UI
             _deviationBar.gameObject.SetActive(manual);
             _deviationBar.anchoredPosition = new Vector2(data.Deflection * _size * 0.22f, 0f);
             _courseReadout.text = manual
-                ? $"CRS {Mathf.RoundToInt(data.Course):000}°"
+                ? $"CRS {Mathf.RoundToInt(data.Course):000}°  {ScaleTag(data.ScaleMode)}"
                 : $"BRG {Mathf.RoundToInt(data.Bearing):000}°";
             _toFromFlag.text = manual ? data.ToStation ? "TO" : "FR" : "DIR";
             _toFromFlag.color = manual && !data.ToStation ? UiColors.PanelMuted : UiColors.Amber;
+        }
+
+        private static string ScaleTag(CdiScaleMode mode)
+        {
+            switch (mode)
+            {
+                case CdiScaleMode.Approach: return "APP";
+                case CdiScaleMode.Terminal: return "TERM";
+                case CdiScaleMode.Enroute: return "ENR";
+                default: return "FIX";
+            }
         }
 
         private void BuildCompassCard(RectTransform parent)

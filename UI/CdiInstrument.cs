@@ -11,6 +11,8 @@ namespace NOVor.UI
 
         private Text _fieldText;
         private Text _actionText;
+        private Text _courseText;
+        private Text _etaText;
         private GameObject _manualGroup;
         private Text _offScaleLeft;
         private Text _offScaleRight;
@@ -36,6 +38,10 @@ namespace NOVor.UI
             bool manual = data.Mode == CourseMode.Manual;
             _manualGroup.SetActive(manual);
             _fieldText.text = CompactFieldName(data.AirportName) + "  " + FormatRange(data.DistanceNm);
+            _courseText.text = manual
+                ? "CRS " + FormatDegrees(data.Course) + (data.ToStation ? " TO" : " FR")
+                : "BRG " + FormatDegrees(data.Bearing) + " DIR";
+            _etaText.text = FormatEta(data) + "   " + Mathf.RoundToInt(data.GroundSpeedKnots) + "KT";
 
             if (manual)
                 SetManualData(data);
@@ -47,13 +53,23 @@ namespace NOVor.UI
         {
             float magnitude = Mathf.Abs(data.CrossTrackNm);
             string side = data.Side > 0 ? "R" : data.Side < 0 ? "L" : "ON";
-            _actionText.text = "XTK " + FormatCrossTrack(magnitude) + " " + side;
+
+            if (data.OffScale)
+            {
+                _actionText.text = "INTCP " + FormatDegrees(data.InterceptHeading) + "°";
+                _actionText.color = UiColors.HudAmber;
+            }
+            else
+            {
+                _actionText.text = "XTK " + FormatCrossTrack(magnitude) + " " + side;
+                _actionText.color = UiColors.HudGreen;
+            }
 
             _needle.gameObject.SetActive(!data.OffScale);
             _needle.anchoredPosition = new Vector2(data.Deflection * ScaleHalfWidthPx, 0f);
             _offScaleLeft.color = data.OffScale && data.Deflection < 0f ? UiColors.HudAmber : Hidden;
             _offScaleRight.color = data.OffScale && data.Deflection > 0f ? UiColors.HudAmber : Hidden;
-            _scaleLabel.text = FormatScale(data.FullScaleNm);
+            _scaleLabel.text = ScaleTag(data.ScaleMode) + " " + FormatScale(data.FullScaleNm);
             _toFromFlag.text = data.ToStation ? "▲ TO" : "▼ FR";
         }
 
@@ -61,6 +77,7 @@ namespace NOVor.UI
         {
             string command = data.SteeringError > 0.5f ? "R" : data.SteeringError < -0.5f ? "L" : "ON";
             _actionText.text = "CMD " + Mathf.Abs(data.SteeringError).ToString("F0") + "° " + command;
+            _actionText.color = UiColors.HudGreen;
         }
 
         private static string CompactFieldName(string value)
@@ -92,6 +109,31 @@ namespace NOVor.UI
             return value + "NM";
         }
 
+        private static string FormatDegrees(float degrees)
+        {
+            int rounded = Mathf.RoundToInt(Mathf.Repeat(degrees, 360f));
+            if (rounded == 360) rounded = 0;
+            return rounded.ToString("000");
+        }
+
+        private static string ScaleTag(CdiScaleMode mode)
+        {
+            switch (mode)
+            {
+                case CdiScaleMode.Approach: return "APP";
+                case CdiScaleMode.Terminal: return "TERM";
+                case CdiScaleMode.Enroute: return "ENR";
+                default: return "FIX";
+            }
+        }
+
+        private static string FormatEta(CdiData data)
+        {
+            if (!data.HasEta || data.EtaSeconds <= 0f || data.EtaSeconds > 359940f) return "ETA --:--";
+            int total = Mathf.RoundToInt(data.EtaSeconds);
+            return "ETA " + (total / 60).ToString("00") + ":" + (total % 60).ToString("00");
+        }
+
         private void Awake()
         {
             Build();
@@ -103,7 +145,7 @@ namespace NOVor.UI
             rt.anchorMin = new Vector2(0.5f, 0.5f);
             rt.anchorMax = new Vector2(0.5f, 0.5f);
             rt.pivot = new Vector2(0.5f, 0.5f);
-            rt.sizeDelta = new Vector2(320f, 118f);
+            rt.sizeDelta = new Vector2(320f, 160f);
 
             _fieldText = HudGlyphs.MakeText("FieldRange", UiColors.TextSecondary, 12, FontStyle.Bold);
             _fieldText.rectTransform.SetParent(rt, false);
@@ -113,7 +155,15 @@ namespace NOVor.UI
 
             _actionText = HudGlyphs.MakeText("Action", UiColors.HudGreen, 16, FontStyle.Bold);
             _actionText.rectTransform.SetParent(rt, false);
-            HudGlyphs.Place(_actionText.rectTransform, new Vector2(0f, -47f), new Vector2(260f, 22f));
+            HudGlyphs.Place(_actionText.rectTransform, new Vector2(0f, -53f), new Vector2(260f, 22f));
+
+            _courseText = HudGlyphs.MakeText("Course", UiColors.TextSecondary, 12, FontStyle.Bold);
+            _courseText.rectTransform.SetParent(rt, false);
+            HudGlyphs.Place(_courseText.rectTransform, new Vector2(0f, -30f), new Vector2(260f, 18f));
+
+            _etaText = HudGlyphs.MakeText("Eta", UiColors.TextMuted, 11, FontStyle.Normal);
+            _etaText.rectTransform.SetParent(rt, false);
+            HudGlyphs.Place(_etaText.rectTransform, new Vector2(0f, -74f), new Vector2(260f, 16f));
 
             SetVisible(false);
         }
@@ -145,7 +195,7 @@ namespace NOVor.UI
             _scaleLabel = HudGlyphs.MakeCue(scale, "FullScale", "1NM", UiColors.TextSecondary,
                 new Vector2(ScaleHalfWidthPx + 30f, 10f), 9);
             _scaleLabel.alignment = TextAnchor.MiddleLeft;
-            _scaleLabel.rectTransform.sizeDelta = new Vector2(42f, 16f);
+            _scaleLabel.rectTransform.sizeDelta = new Vector2(70f, 16f);
 
             _toFromFlag = HudGlyphs.MakeCue(scale, "ToFrom", "▲ TO", UiColors.TextSecondary,
                 new Vector2(-(ScaleHalfWidthPx + 32f), 10f), 9);
