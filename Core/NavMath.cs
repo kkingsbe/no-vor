@@ -30,6 +30,15 @@ namespace NOVor.Core
             return aircraftEastOfStation * rightEast + aircraftNorthOfStation * rightNorth;
         }
 
+        public static double AlongTrackToThresholdMeters(double course, double aircraftEastOfThreshold,
+            double aircraftNorthOfThreshold)
+        {
+            double radians = course * Math.PI / 180d;
+            double inboundEast = Math.Sin(radians);
+            double inboundNorth = Math.Cos(radians);
+            return -(aircraftEastOfThreshold * inboundEast + aircraftNorthOfThreshold * inboundNorth);
+        }
+
         public static double CrossTrackDeflection(double crossTrackMeters, double fullDeflectionMeters)
         {
             if (fullDeflectionMeters <= 0d) return 0d;

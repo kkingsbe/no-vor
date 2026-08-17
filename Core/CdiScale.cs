@@ -4,9 +4,7 @@ namespace NOVor.Core
 {
     public enum CdiScaleMode
     {
-        Enroute,
-        Terminal,
-        Approach,
+        Angular,
         Fixed
     }
 
@@ -22,36 +20,15 @@ namespace NOVor.Core
 
     public static class CdiScale
     {
-        public const double EnrouteFullScaleNm = 5d;
-        public const double TerminalFullScaleNm = 1d;
-        public const double ApproachFullScaleNm = 0.3d;
-        public const double TerminalEntryNm = 30d;
-        public const double ApproachEntryNm = 2d;
-        public const double TerminalHysteresisNm = 2d;
-        public const double ApproachHysteresisNm = 0.3d;
+        // Conventional VOR CDI full-scale deflection is angular, not a set lateral
+        // distance. This is the approximate full-scale angular displacement.
+        public const double FullScaleDeflectionDegrees = 10d;
         private const double SideDeadbandNm = 0.005d;
 
-        public static CdiScaleMode SelectMode(double distanceNm, CdiScaleMode previous)
+        public static double AngularFullScaleNm(double distanceNm)
         {
-            if (previous == CdiScaleMode.Approach && distanceNm <= ApproachEntryNm + ApproachHysteresisNm)
-                return CdiScaleMode.Approach;
-            if (previous == CdiScaleMode.Terminal && distanceNm > ApproachEntryNm
-                && distanceNm <= TerminalEntryNm + TerminalHysteresisNm)
-                return CdiScaleMode.Terminal;
-            if (distanceNm <= ApproachEntryNm) return CdiScaleMode.Approach;
-            if (distanceNm <= TerminalEntryNm) return CdiScaleMode.Terminal;
-            return CdiScaleMode.Enroute;
-        }
-
-        public static double FullScaleNm(CdiScaleMode mode, double fixedFullScaleNm)
-        {
-            switch (mode)
-            {
-                case CdiScaleMode.Approach: return ApproachFullScaleNm;
-                case CdiScaleMode.Terminal: return TerminalFullScaleNm;
-                case CdiScaleMode.Enroute: return EnrouteFullScaleNm;
-                default: return fixedFullScaleNm;
-            }
+            double radians = FullScaleDeflectionDegrees * Math.PI / 180d;
+            return Math.Max(0d, distanceNm) * Math.Sin(radians);
         }
 
         public static double InterceptHeadingDegrees(double course, double crossTrackNm,
@@ -66,8 +43,8 @@ namespace NOVor.Core
             CdiScaleMode previousMode, bool autoScale, double fixedFullScaleNm,
             double maxInterceptDegrees)
         {
-            CdiScaleMode mode = autoScale ? SelectMode(distanceNm, previousMode) : CdiScaleMode.Fixed;
-            double fullScale = FullScaleNm(mode, fixedFullScaleNm);
+            CdiScaleMode mode = autoScale ? CdiScaleMode.Angular : CdiScaleMode.Fixed;
+            double fullScale = autoScale ? AngularFullScaleNm(distanceNm) : fixedFullScaleNm;
             double magnitude = Math.Abs(crossTrackNm);
             return new CdiDeviation
             {

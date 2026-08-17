@@ -1,23 +1,28 @@
+using NOVor.Core;
 using UnityEngine;
 using UnityEngine.UI;
-using NOVor.Core;
 
 namespace NOVor.UI
 {
     public class HeadingTapeCues : MonoBehaviour
     {
         private RawImage _compass;
-        private Text _courseCue;
-        private Text _steeringCue;
+        private HudCueIcon _courseCue;
+        private HudCueIcon _commandCue;
+        private bool _hasSmoothedDeltas;
+        private float _smoothedCourseDelta;
+        private float _smoothedCommandDelta;
 
         public void Initialize(RawImage compass)
         {
             _compass = compass;
             Build();
+            _hasSmoothedDeltas = false;
         }
 
         public void SetVisible(bool visible)
         {
+            if (!visible) _hasSmoothedDeltas = false;
             gameObject.SetActive(visible);
         }
 
@@ -29,21 +34,36 @@ namespace NOVor.UI
             if (visibleDegrees < 1f) visibleDegrees = 90f;
             float halfSpan = visibleDegrees * 0.5f;
             float courseDelta = (float)NavMath.DeltaAngleDegrees(data.Heading, data.Course);
-            float steerDelta = (float)NavMath.DeltaAngleDegrees(data.Heading, data.SteerHeading);
+            float commandDelta = (float)NavMath.DeltaAngleDegrees(data.Heading, data.CommandHeading);
+            float maxStep = Plugin.HeadingCueResponseDegreesPerSecond.Value * Time.unscaledDeltaTime;
 
-            SetCue(_courseCue, courseDelta, halfSpan, "▽", UiColors.HudGreen);
-            SetCue(_steeringCue, steerDelta, halfSpan, "◇", UiColors.HudAmber);
+            if (!_hasSmoothedDeltas)
+            {
+                _smoothedCourseDelta = courseDelta;
+                _smoothedCommandDelta = commandDelta;
+                _hasSmoothedDeltas = true;
+            }
+            else
+            {
+                _smoothedCourseDelta = Mathf.MoveTowardsAngle(_smoothedCourseDelta, courseDelta, maxStep);
+                _smoothedCommandDelta = Mathf.MoveTowardsAngle(_smoothedCommandDelta, commandDelta, maxStep);
+            }
+
+            float lane = _compass.rectTransform.rect.height * 0.25f;
+            SetCue(_courseCue, _smoothedCourseDelta, halfSpan, lane, true);
+            SetCue(_commandCue, _smoothedCommandDelta, halfSpan, -lane, false);
         }
 
-        private void SetCue(Text cue, float delta, float halfSpan, string glyph, Color color)
+        private void SetCue(HudCueIcon cue, float delta, float halfSpan, float laneY,
+            bool pointOutward)
         {
-            float halfWidth = _compass.rectTransform.rect.width * 0.5f;
+            float halfWidth = Mathf.Max(1f, _compass.rectTransform.rect.width * 0.5f - 12f);
             bool offScale = Mathf.Abs(delta) > halfSpan;
             float x = Mathf.Clamp(delta / halfSpan, -1f, 1f) * halfWidth;
-            cue.rectTransform.anchoredPosition = new Vector2(x, cue.rectTransform.anchoredPosition.y);
-            cue.text = !offScale ? glyph
-                : delta < 0f ? HudGlyphs.OffScaleLeft : HudGlyphs.OffScaleRight;
-            cue.color = offScale ? UiColors.HudAmber : color;
+            cue.Rect.anchoredPosition = new Vector2(x, laneY);
+            cue.Rect.localEulerAngles = pointOutward && offScale
+                ? new Vector3(0f, 0f, delta < 0f ? -90f : 90f)
+                : Vector3.zero;
         }
 
         private void Build()
@@ -55,13 +75,8 @@ namespace NOVor.UI
             rt.offsetMax = Vector2.zero;
             rt.pivot = new Vector2(0.5f, 0.5f);
 
-            float quarterHeight = _compass.rectTransform.rect.height * 0.25f;
-            _courseCue = HudGlyphs.MakeCue(rt, "NOVorCourseCue", "▽", UiColors.HudGreen,
-                new Vector2(0f, quarterHeight), 15);
-            _courseCue.rectTransform.sizeDelta = new Vector2(24f, 20f);
-            _steeringCue = HudGlyphs.MakeCue(rt, "NOVorSteeringCue", "◇", UiColors.HudAmber,
-                new Vector2(0f, -quarterHeight), 15);
-            _steeringCue.rectTransform.sizeDelta = new Vector2(24f, 20f);
+            _courseCue = HudCueIcon.CreateCourse(rt);
+            _commandCue = HudCueIcon.CreateCommand(rt);
         }
     }
 }

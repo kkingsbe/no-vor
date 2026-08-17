@@ -5,7 +5,8 @@ namespace NOVor.Core
     public enum CourseMode
     {
         Auto,
-        Manual
+        Manual,
+        Runway
     }
 
     public enum AirportSortMode
@@ -19,6 +20,8 @@ namespace NOVor.Core
         public string Label;
         public float Heading;
         public float LengthMeters;
+        public Vector3 ThresholdPosition;
+        public Vector3 DepartureEndPosition;
     }
 
     public struct AirportInfo

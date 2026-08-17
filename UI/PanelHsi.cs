@@ -54,10 +54,10 @@ namespace NOVor.UI
                 UiColors.Amber, TextAlignmentOptions.Center,
                 new Vector2(size, 22f), new Vector2(0f, size * 0.5f - 1f));
             MakeRect(root, "FlagWell", UiColors.ChromeRaised,
-                new Vector2(44f, 20f), new Vector2(0f, -size * 0.5f + 11f));
+                new Vector2(64f, 20f), new Vector2(0f, -size * 0.5f + 11f));
             _toFromFlag = MakeText(root, "ToFrom", "TO", 14,
                 UiColors.Amber, TextAlignmentOptions.Center,
-                new Vector2(40f, 18f), new Vector2(0f, -size * 0.5f + 11f));
+                new Vector2(60f, 18f), new Vector2(0f, -size * 0.5f + 11f));
 
             var selector = gameObject.GetComponent<HsiCourseSelector>() ?? gameObject.AddComponent<HsiCourseSelector>();
             selector.Delta += delta => CourseAdjusted?.Invoke(delta);
@@ -66,16 +66,22 @@ namespace NOVor.UI
         public void SetData(CdiData data)
         {
             if (_compassCard == null) return;
-            bool manual = data.Mode == CourseMode.Manual;
+            bool manual = data.Mode != CourseMode.Auto;
             _compassCard.localEulerAngles = new Vector3(0f, 0f, data.Heading);
             _bearingPointer.localEulerAngles = new Vector3(0f, 0f, -(data.Bearing - data.Heading));
             _courseAssembly.localEulerAngles = new Vector3(0f, 0f, -(data.Course - data.Heading));
             _deviationBar.gameObject.SetActive(manual);
             _deviationBar.anchoredPosition = new Vector2(data.Deflection * _size * 0.22f, 0f);
-            _courseReadout.text = manual
-                ? $"CRS {Mathf.RoundToInt(data.Course):000}°  {ScaleTag(data.ScaleMode)}"
-                : $"BRG {Mathf.RoundToInt(data.Bearing):000}°";
-            _toFromFlag.text = manual ? data.ToStation ? "TO" : "FR" : "DIR";
+            _courseReadout.text = data.Mode == CourseMode.Runway
+                ? $"CRS {Mathf.RoundToInt(data.Course):000}°  RWY"
+                : manual
+                    ? $"CRS {Mathf.RoundToInt(data.Course):000}°  {ScaleTag(data.ScaleMode)}"
+                    : $"BRG {Mathf.RoundToInt(data.Bearing):000}°";
+            _toFromFlag.text = data.Mode == CourseMode.Runway
+                ? data.RunwayPhase == RunwayGuidancePhase.Established ? "EST" : "RWY"
+                : manual
+                    ? NavigationPresentation.ToFromLabel(data.ToStation)
+                    : "DIRECT";
             _toFromFlag.color = manual && !data.ToStation ? UiColors.PanelMuted : UiColors.Amber;
         }
 
@@ -83,9 +89,7 @@ namespace NOVor.UI
         {
             switch (mode)
             {
-                case CdiScaleMode.Approach: return "APP";
-                case CdiScaleMode.Terminal: return "TERM";
-                case CdiScaleMode.Enroute: return "ENR";
+                case CdiScaleMode.Angular: return "VOR";
                 default: return "FIX";
             }
         }

@@ -8,5 +8,11 @@
   <ItemGroup>
     <Compile Include="..\..\Core\NavMath.cs" Link="Core\NavMath.cs" />
     <Compile Include="..\..\Core\CdiScale.cs" Link="Core\CdiScale.cs" />
+    <Compile Include="..\..\Core\GuidanceMath.cs" Link="Core\GuidanceMath.cs" />
+    <Compile Include="..\..\Core\RunwayGuidance.cs" Link="Core\RunwayGuidance.cs" />
+    <Compile Include="..\..\Core\NavigationPresentation.cs" Link="Core\NavigationPresentation.cs" />
+    <Compile Include="..\..\Core\CockpitPresentation.cs" Link="Core\CockpitPresentation.cs" />
+    <Compile Include="..\..\Core\InputBindingPolicy.cs" Link="Core\InputBindingPolicy.cs" />
+    <Compile Include="..\..\Core\HotasBinding.cs" Link="Core\HotasBinding.cs" />
   </ItemGroup>
 </Project>

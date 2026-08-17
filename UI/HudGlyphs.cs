@@ -7,7 +7,6 @@ namespace NOVor.UI
     {
         public const string OffScaleLeft = "◀";
         public const string OffScaleRight = "▶";
-
         private static Font _font;
 
         public static Font Font

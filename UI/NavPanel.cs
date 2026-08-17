@@ -41,12 +41,15 @@ namespace NOVor.UI
         private GameObject _ownedEventSystem;
         private RectTransform _panelRt;
         private GameObject _body;
+        private KeyBindingPanel _keyBindingPanel;
         private RectTransform _contentRt;
         private ScrollRect _scrollRect;
         private LayoutElement _listElement;
         private TextMeshProUGUI _emptyLabel;
         private TextMeshProUGUI _headerReadout;
         private TextMeshProUGUI _minimizeLabel;
+        private Button _controlsButton;
+        private TextMeshProUGUI _controlsLabel;
         private TMP_InputField _searchInput;
         private PanelHsi _hsi;
         private Button _autoButton;
@@ -80,6 +83,7 @@ namespace NOVor.UI
         private AirportSortMode _sortMode;
         private bool _friendlyOnly;
         private bool _minimized;
+        private bool _showingControls;
         private bool _visible = true;
         private CursorLockMode _previousLockState;
         private bool _previousCursorVisible;
@@ -90,7 +94,7 @@ namespace NOVor.UI
         public event Action SetReciprocalCourse;
         public event Action SetCourseToBearing;
         public event Action SetCourseToHeading;
-        public event Action<int, float> RunwaySelected;
+        public event Action<int, RunwayInfo> RunwaySelected;
 
         public void Create()
         {
@@ -113,6 +117,9 @@ namespace NOVor.UI
             if (UnityEngine.Object.FindObjectOfType<EventSystem>() == null)
             {
                 _ownedEventSystem = new GameObject("NOVorEventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
+                var input = _ownedEventSystem.GetComponent<StandaloneInputModule>();
+                input.submitButton = string.Empty;
+                input.cancelButton = string.Empty;
                 UnityEngine.Object.DontDestroyOnLoad(_ownedEventSystem);
             }
 
@@ -150,6 +157,9 @@ namespace NOVor.UI
 
             BuildHeader(panel.transform, canvasRect);
             BuildBody(panel.transform);
+            _keyBindingPanel = new KeyBindingPanel();
+            _keyBindingPanel.Create(panel.transform, () => ShowControls(false));
+            _keyBindingPanel.SetVisible(false);
             RefreshFilterStyles();
             SetVisible(false);
         }
@@ -173,10 +183,13 @@ namespace NOVor.UI
             _headerReadout.overflowMode = TextOverflowModes.Ellipsis;
             _headerReadout.gameObject.AddComponent<LayoutElement>().flexibleWidth = 1f;
 
-            var minimize = MakeButton(header.transform, "−", 30f, 28f, ToggleMinimized);
+            var minimize = MakeButton(header.transform, "−", 36f, 30f, ToggleMinimized);
             _minimizeLabel = minimize.GetComponentInChildren<TextMeshProUGUI>();
             StyleHeaderControl(minimize, _minimizeLabel);
-            var close = MakeButton(header.transform, "×", 30f, 28f, () => SetVisible(false));
+            _controlsButton = MakeButton(header.transform, "CFG", 44f, 30f, ToggleControls, 9);
+            _controlsLabel = _controlsButton.GetComponentInChildren<TextMeshProUGUI>();
+            StyleHeaderControl(_controlsButton, _controlsLabel);
+            var close = MakeButton(header.transform, "×", 36f, 30f, () => SetVisible(false));
             StyleHeaderControl(close, close.GetComponentInChildren<TextMeshProUGUI>());
         }
 
@@ -202,19 +215,29 @@ namespace NOVor.UI
         private void BuildSearchRow(Transform parent)
         {
             var row = MakeHorizontal(parent, "SearchRow", 28f, 4f);
-            _searchInput = MakeInput(row.transform, "SEARCH FIELDS");
+            _searchInput = MakeInput(row.transform, "SEARCH", "Search fields");
             var searchElement = _searchInput.gameObject.AddComponent<LayoutElement>();
             searchElement.flexibleWidth = 1f;
             searchElement.preferredHeight = ControlHeight;
             _searchInput.onValueChanged.AddListener(new UnityAction<string>(OnFilterChanged));
 
+            MakeToolbarCaption(row.transform, "SORT", 28f);
             _nearButton = MakeButton(row.transform, "NEAR", 48f, ControlHeight, SetSortNearest, 10);
             _nearLabel = _nearButton.GetComponentInChildren<TextMeshProUGUI>();
             _nameButton = MakeButton(row.transform, "A–Z", 42f, ControlHeight, SetSortName, 10);
             _nameLabel = _nameButton.GetComponentInChildren<TextMeshProUGUI>();
             MakeVerticalRule(row.transform, 18f);
+            MakeToolbarCaption(row.transform, "FILTER", 38f);
             _friendlyButton = MakeButton(row.transform, "FRIENDLY", 70f, ControlHeight, ToggleFriendlyOnly, 9);
             _friendlyLabel = _friendlyButton.GetComponentInChildren<TextMeshProUGUI>();
+        }
+
+        private static void MakeToolbarCaption(Transform parent, string text, float width)
+        {
+            var label = MakeText(parent, text + "Caption", text, 8, FontStyles.Bold,
+                UiColors.PanelSecondaryText, TextAlignmentOptions.Center);
+            var element = label.gameObject.AddComponent<LayoutElement>();
+            element.preferredWidth = width;
         }
 
         private static void MakeVerticalRule(Transform parent, float height)
@@ -245,7 +268,7 @@ namespace NOVor.UI
             var rowImage = row.GetComponent<Image>();
             rowImage.color = UiColors.InstrumentWell;
             rowImage.raycastTarget = false;
-            PlaceText(row.transform, "Field", "FIELD", UiColors.PanelMuted,
+            PlaceText(row.transform, "Field", "FIELD · BLUE = FRIENDLY", UiColors.PanelSecondaryText,
                 new Vector2(0f, 0f), new Vector2(1f, 1f), new Vector2(12f, 0f), new Vector2(-124f, 0f),
                 TextAlignmentOptions.MidlineLeft, 9, FontStyles.Bold);
             PlaceText(row.transform, "Bearing", "BRG", UiColors.PanelMuted,
@@ -422,7 +445,7 @@ namespace NOVor.UI
             _navigation = data;
             _hsi?.SetData(data);
             StyleToggle(_autoButton, _autoLabel, data.Mode == CourseMode.Auto);
-            StyleToggle(_manualButton, _manualLabel, data.Mode == CourseMode.Manual);
+            StyleToggle(_manualButton, _manualLabel, data.Mode != CourseMode.Auto);
             RefreshRunwaySelection(data.Course);
             RefreshReadout();
         }
@@ -523,7 +546,7 @@ namespace NOVor.UI
 
             var selectionRail = PlaceImage(rowObject.transform, "Selection", UiColors.Transparent,
                 new Vector2(0f, 0f), new Vector2(0f, 1f), Vector2.zero, new Vector2(3f, 0f));
-            var factionRail = PlaceImage(rowObject.transform, "Faction", info.FactionColor,
+            var factionRail = PlaceImage(rowObject.transform, "Faction", FactionRailColor(info),
                 new Vector2(0f, 0f), new Vector2(0f, 1f), new Vector2(4f, 0f), new Vector2(9f, 0f));
 
             var nameRow = new GameObject("NameRow", typeof(RectTransform), typeof(HorizontalLayoutGroup));
@@ -580,20 +603,29 @@ namespace NOVor.UI
                 if (!TryGetAirport(row.SourceIndex, out AirportInfo info)) continue;
                 bool selected = row.SourceIndex == _selectedSourceIndex;
                 row.SelectionRail.color = selected ? UiColors.Amber : UiColors.Transparent;
-                row.FactionRail.color = info.FactionColor;
+                row.FactionRail.color = FactionRailColor(info);
                 row.Name.text = info.Name;
-                row.Name.color = selected ? UiColors.PanelText : UiColors.PanelMuted;
+                row.Name.color = selected ? UiColors.PanelText : UiColors.PanelSecondaryText;
                 row.Name.fontStyle = selected ? FontStyles.Bold : FontStyles.Normal;
                 row.Bearing.text = info.HasPosition ? $"{Mathf.RoundToInt(info.Bearing):000}°" : "---";
                 row.Distance.text = info.HasPosition ? info.DistanceNm.ToString("0.0") : "--.-";
-                row.Bearing.color = UiColors.PanelText;
-                row.Distance.color = UiColors.PanelText;
+                row.Bearing.color = info.HasPosition ? UiColors.PanelInteractive : UiColors.PanelDisabledText;
+                row.Distance.color = info.HasPosition ? UiColors.PanelInteractive : UiColors.PanelDisabledText;
                 bool parked = selected && info.HasPosition && info.DistanceNm < 0.5f;
                 row.MovBadge.SetActive(info.IsMobile);
                 row.PinnedBadge.SetActive(row.Pinned);
                 row.HereBadge.SetActive(parked);
                 ApplyButtonTint(row.Button, selected ? UiColors.SelectionSurface : UiColors.RowSurface);
+                row.Button.interactable = info.HasPosition;
             }
+        }
+
+        private static Color FactionRailColor(AirportInfo info)
+        {
+            if (info.IsFriendly) return UiColors.FactionRail;
+            var color = info.FactionColor;
+            color.a = 0.55f;
+            return color;
         }
 
         private void RefreshHeader()
@@ -605,7 +637,8 @@ namespace NOVor.UI
             }
             string name = CompactHeaderName(info.Name);
             _headerReadout.text = info.HasPosition
-                ? $"{name}  ·  {Mathf.RoundToInt(info.Bearing):000}°  ·  {info.DistanceNm:0.0} NM"
+                ? $"{name}  ·  {Mathf.RoundToInt(info.Bearing):000}°  ·  " +
+                    NavigationPresentation.FormatDistance(info.DistanceNm, Plugin.DisplayUnits.Value)
                 : name;
         }
 
@@ -657,8 +690,9 @@ namespace NOVor.UI
                 float heading = runway.Heading;
                 int runwayIndex = i;
                 float lengthNm = runway.LengthMeters / 1852f;
-                string label = $"{CompactRunwayName(runway.Label)} {Mathf.RoundToInt(heading):000}° {lengthNm:0.0} NM";
-                var button = MakeFlexButton(row, label, () => SelectRunway(runwayIndex, heading), 9);
+                string label = $"{CompactRunwayName(runway.Label)} {Mathf.RoundToInt(heading):000}° " +
+                    NavigationPresentation.FormatDistance(lengthNm, Plugin.DisplayUnits.Value);
+                var button = MakeFlexButton(row, label, () => SelectRunway(runwayIndex, runway), 9);
                 _runwayButtons.Add(button);
                 _runwayLabels.Add(button.GetComponentInChildren<TextMeshProUGUI>());
                 _runways.Add(runway);
@@ -668,45 +702,25 @@ namespace NOVor.UI
 
         private void RefreshRunwaySelection(float course)
         {
-            if (_selectedRunwayIndex >= 0 && _selectedRunwayIndex < _runways.Count &&
-                Mathf.Abs(Mathf.DeltaAngle(_runways[_selectedRunwayIndex].Heading, course)) > 1f)
-                _selectedRunwayIndex = -1;
-
-            if (_selectedRunwayIndex < 0)
-            {
-                int match = -1;
-                int bestScore = int.MinValue;
-                for (int i = 0; i < _runways.Count; i++)
-                {
-                    if (Mathf.Abs(Mathf.DeltaAngle(_runways[i].Heading, course)) > 1f) continue;
-                    int score = RunwayPriority(_runways[i].Label);
-                    if (score <= bestScore) continue;
-                    bestScore = score;
-                    match = i;
-                }
-                _selectedRunwayIndex = match;
-            }
-
             for (int i = 0; i < _runwayButtons.Count && i < _runways.Count; i++)
             {
                 bool selected = i == _selectedRunwayIndex;
-                StyleToggle(_runwayButtons[i], _runwayLabels[i], selected);
+                StyleRunway(_runwayButtons[i], _runwayLabels[i], selected);
             }
         }
 
-        private static int RunwayPriority(string label)
-        {
-            if (string.IsNullOrEmpty(label)) return 2;
-            if (label.StartsWith("RWY", StringComparison.OrdinalIgnoreCase)) return 3;
-            if (label.IndexOf("DECK", StringComparison.OrdinalIgnoreCase) >= 0) return 2;
-            return 1;
-        }
-
-        private void SelectRunway(int index, float heading)
+        private void SelectRunway(int index, RunwayInfo runway)
         {
             _selectedRunwayIndex = index;
-            RefreshRunwaySelection(heading);
-            RunwaySelected?.Invoke(index, heading);
+            RefreshRunwaySelection(runway.Heading);
+            RunwaySelected?.Invoke(index, runway);
+        }
+
+        public void ClearRunwaySelection()
+        {
+            _selectedRunwayIndex = -1;
+            for (int i = 0; i < _runwayButtons.Count && i < _runwayLabels.Count; i++)
+                StyleRunway(_runwayButtons[i], _runwayLabels[i], false);
         }
 
         private static string CompactRunwayName(string label)
@@ -719,9 +733,9 @@ namespace NOVor.UI
 
         private void RefreshReadout()
         {
-            const string faint = "#5F6A64";
+            const string faint = "#727B76";
             const string bright = "#D8DDD9";
-            const string muted = "#8B928E";
+            const string muted = "#AEB6B1";
             if (_navigation == null || !TryGetAirport(_selectedSourceIndex, out AirportInfo info))
             {
                 _readoutSteer.text = $"<color={muted}>STEER</color> <color={faint}>---</color>";
@@ -731,8 +745,8 @@ namespace NOVor.UI
                     $"<color={muted}>ELEV</color> <color={faint}>---</color>";
                 return;
             }
-            string steer = $"{Mathf.RoundToInt(_navigation.SteerHeading):000}°";
-            string gs = $"{Mathf.RoundToInt(_navigation.GroundSpeedKnots):000} kt";
+            string steer = $"{Mathf.RoundToInt(_navigation.CommandHeading):000}°";
+            string gs = NavigationPresentation.FormatSpeed(_navigation.GroundSpeedKnots, Plugin.DisplayUnits.Value);
             string eta = FormatEta(_navigation);
             string etaColor = _navigation.HasEta ? bright : faint;
             string elev = info.IsMobile ? "N/A" : Mathf.RoundToInt(info.ElevationMeters) + " m";
@@ -832,10 +846,35 @@ namespace NOVor.UI
 
         private void ToggleMinimized()
         {
+            if (_showingControls) ShowControls(false);
             _minimized = !_minimized;
             _body.SetActive(!_minimized);
             _minimizeLabel.text = _minimized ? "+" : "–";
             _panelRt.sizeDelta = new Vector2(PanelWidth, _minimized ? HeaderHeight + 16f : PanelHeight);
+        }
+
+        private void ToggleControls()
+        {
+            ShowControls(!_showingControls);
+        }
+
+        private void ShowControls(bool visible)
+        {
+            _showingControls = visible;
+            if (visible && _minimized)
+            {
+                _minimized = false;
+                _minimizeLabel.text = "−";
+                _panelRt.sizeDelta = new Vector2(PanelWidth, PanelHeight);
+            }
+            if (_body != null) _body.SetActive(!visible && !_minimized);
+            _keyBindingPanel?.SetVisible(visible);
+            StyleToggle(_controlsButton, _controlsLabel, visible);
+        }
+
+        public bool TickBindingCapture()
+        {
+            return _keyBindingPanel != null && _keyBindingPanel.TickCapture();
         }
 
         private void OnDragEnded(Vector2 position)
@@ -864,6 +903,7 @@ namespace NOVor.UI
             }
             else
             {
+                _keyBindingPanel?.CancelCapture();
                 Cursor.lockState = _previousLockState;
                 Cursor.visible = _previousCursorVisible;
             }
@@ -876,6 +916,11 @@ namespace NOVor.UI
                 Cursor.lockState = _previousLockState;
                 Cursor.visible = _previousCursorVisible;
             }
+            var eventSystem = EventSystem.current;
+            var selected = eventSystem != null ? eventSystem.currentSelectedGameObject : null;
+            if (selected != null && _root != null && selected.transform.IsChildOf(_root.transform))
+                eventSystem.SetSelectedGameObject(null);
+            _keyBindingPanel?.CancelCapture();
             if (_root != null) UnityEngine.Object.Destroy(_root);
             if (_ownedEventSystem != null) UnityEngine.Object.Destroy(_ownedEventSystem);
         }
@@ -952,16 +997,24 @@ namespace NOVor.UI
             StyleAction(button, button.GetComponentInChildren<TextMeshProUGUI>());
         }
 
-        private TMP_InputField MakeInput(Transform parent, string placeholder)
+        private TMP_InputField MakeInput(Transform parent, string labelText, string placeholder)
         {
             var go = new GameObject("SearchInput", typeof(RectTransform), typeof(Image), typeof(TMP_InputField));
             go.transform.SetParent(parent, false);
             var image = go.GetComponent<Image>();
             image.color = UiColors.ChromeRaised;
 
+            var label = MakeText(go.transform, "Label", labelText, 7, FontStyles.Bold,
+                UiColors.PanelSecondaryText, TextAlignmentOptions.TopLeft);
+            label.rectTransform.anchorMin = new Vector2(0f, 1f);
+            label.rectTransform.anchorMax = new Vector2(1f, 1f);
+            label.rectTransform.offsetMin = new Vector2(8f, -12f);
+            label.rectTransform.offsetMax = new Vector2(-8f, -1f);
+            label.raycastTarget = false;
+
             var area = new GameObject("TextArea", typeof(RectTransform), typeof(RectMask2D));
             area.transform.SetParent(go.transform, false);
-            Stretch(area.GetComponent<RectTransform>(), new Vector2(8f, 2f), new Vector2(-8f, -2f));
+            Stretch(area.GetComponent<RectTransform>(), new Vector2(8f, 0f), new Vector2(-8f, -14f));
             var text = MakeText(area.transform, "Text", "", 10, FontStyles.Normal,
                 UiColors.PanelText, TextAlignmentOptions.MidlineLeft);
             Stretch(text.rectTransform);
@@ -1027,7 +1080,8 @@ namespace NOVor.UI
         {
             if (button == null || label == null) return;
             ApplyButtonTint(button, UiColors.ChromeRaised);
-            label.color = selected ? UiColors.Amber : UiColors.PanelMuted;
+            label.color = selected ? UiColors.Amber : UiColors.PanelSecondaryText;
+            label.fontStyle = selected ? FontStyles.Bold : FontStyles.Normal;
             var railTransform = button.transform.Find("ActiveRail");
             Image rail;
             if (railTransform == null)
@@ -1054,15 +1108,30 @@ namespace NOVor.UI
         {
             if (button == null || label == null) return;
             ApplyButtonTint(button, UiColors.ChromeRaised);
-            label.color = UiColors.PanelText;
+            label.color = UiColors.PanelInteractive;
         }
 
         private static void StyleHeaderControl(Button button, TextMeshProUGUI label)
         {
             if (button == null || label == null) return;
             ApplyButtonTint(button, UiColors.ChromeRaised);
-            label.color = UiColors.PanelMuted;
+            label.color = UiColors.PanelSecondaryText;
             label.fontSize = 14;
+        }
+
+        private static void StyleRunway(Button button, TextMeshProUGUI label, bool selected)
+        {
+            ApplyButtonTint(button, UiColors.ChromeRaised);
+            label.color = selected ? UiColors.Amber : UiColors.PanelInteractive;
+            label.fontStyle = selected ? FontStyles.Bold : FontStyles.Normal;
+            var rail = button.transform.Find("ActiveRail");
+            if (rail == null)
+            {
+                StyleToggle(button, label, selected);
+                label.color = selected ? UiColors.Amber : UiColors.PanelInteractive;
+                return;
+            }
+            rail.GetComponent<Image>().color = selected ? UiColors.Amber : UiColors.Transparent;
         }
 
         private static GameObject MakeBadge(Transform parent, string text, Color accent)
@@ -1092,7 +1161,7 @@ namespace NOVor.UI
             colors.selectedColor = new Color(1.18f, 1.18f, 1.18f, 1f);
             colors.disabledColor = new Color(0.55f, 0.55f, 0.55f, 0.55f);
             colors.colorMultiplier = 1f;
-            colors.fadeDuration = 0.06f;
+            colors.fadeDuration = 0.15f;
             button.colors = colors;
             button.GetComponent<Image>().color = baseColor;
         }

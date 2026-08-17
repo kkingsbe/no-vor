@@ -2,6 +2,7 @@ using BepInEx;
 using BepInEx.Configuration;
 using BepInEx.Logging;
 using UnityEngine;
+using NOVor.Core;
 
 namespace NOVor
 {
@@ -18,10 +19,12 @@ namespace NOVor
         internal static ConfigEntry<float> FullDeflectionNm;
         internal static ConfigEntry<bool> AutoScaleCdi;
         internal static ConfigEntry<float> MaxInterceptDegrees;
+        internal static ConfigEntry<NavigationDisplayUnits> DisplayUnits;
         internal static ConfigEntry<float> HudOffsetX;
         internal static ConfigEntry<float> HudOffsetY;
         internal static ConfigEntry<int> HudLayoutVersion;
         internal static ConfigEntry<float> HudNudgeStep;
+        internal static ConfigEntry<float> HeadingCueResponseDegreesPerSecond;
         internal static ConfigEntry<KeyboardShortcut> HudNudgeUpKey;
         internal static ConfigEntry<KeyboardShortcut> HudNudgeDownKey;
         internal static ConfigEntry<KeyboardShortcut> HudNudgeLeftKey;
@@ -29,6 +32,17 @@ namespace NOVor
         internal static ConfigEntry<KeyboardShortcut> CourseDecreaseKey;
         internal static ConfigEntry<KeyboardShortcut> CourseIncreaseKey;
         internal static ConfigEntry<KeyboardShortcut> DirectToKey;
+        internal static ConfigEntry<string> HotasNextAirport;
+        internal static ConfigEntry<string> HotasPrevAirport;
+        internal static ConfigEntry<string> HotasToggleHud;
+        internal static ConfigEntry<string> HotasToggleMenu;
+        internal static ConfigEntry<string> HotasCourseDecrease;
+        internal static ConfigEntry<string> HotasCourseIncrease;
+        internal static ConfigEntry<string> HotasDirectTo;
+        internal static ConfigEntry<string> HotasHudNudgeUp;
+        internal static ConfigEntry<string> HotasHudNudgeDown;
+        internal static ConfigEntry<string> HotasHudNudgeLeft;
+        internal static ConfigEntry<string> HotasHudNudgeRight;
         internal static ConfigEntry<bool> CourseModeManual;
         internal static ConfigEntry<float> DefaultManualCourse;
         internal static ConfigEntry<float> CourseStep;
@@ -65,6 +79,29 @@ namespace NOVor
             DirectToKey = Config.Bind("Hotkeys", "DirectTo", new KeyboardShortcut(KeyCode.Backslash),
                 "Set the manual course to the current bearing to the selected field.");
 
+            HotasNextAirport = Config.Bind("Hotas", "NextAirport", "",
+                "HOTAS button that cycles to the next airport. Set from the nav panel Controls screen.");
+            HotasPrevAirport = Config.Bind("Hotas", "PrevAirport", "",
+                "HOTAS button that cycles to the previous airport. Set from the nav panel Controls screen.");
+            HotasToggleHud = Config.Bind("Hotas", "ToggleHud", "",
+                "HOTAS button that shows or hides the CDI HUD instrument.");
+            HotasToggleMenu = Config.Bind("Hotas", "ToggleMenu", "",
+                "HOTAS button that opens or closes the airport selection list.");
+            HotasCourseDecrease = Config.Bind("Hotas", "CourseDecrease", "",
+                "HOTAS button that decreases the manual course.");
+            HotasCourseIncrease = Config.Bind("Hotas", "CourseIncrease", "",
+                "HOTAS button that increases the manual course.");
+            HotasDirectTo = Config.Bind("Hotas", "DirectTo", "",
+                "HOTAS button that sets the manual course to the current bearing to the selected field.");
+            HotasHudNudgeUp = Config.Bind("Hotas", "HudNudgeUp", "",
+                "HOTAS button that moves the CDI instrument up.");
+            HotasHudNudgeDown = Config.Bind("Hotas", "HudNudgeDown", "",
+                "HOTAS button that moves the CDI instrument down.");
+            HotasHudNudgeLeft = Config.Bind("Hotas", "HudNudgeLeft", "",
+                "HOTAS button that moves the CDI instrument left.");
+            HotasHudNudgeRight = Config.Bind("Hotas", "HudNudgeRight", "",
+                "HOTAS button that moves the CDI instrument right.");
+
             CourseModeManual = Config.Bind("Navigation", "ManualCourseByDefault", false,
                 "Start in manual course mode instead of automatic direct-to-airport.");
             DefaultManualCourse = Config.Bind("Navigation", "DefaultManualCourse", 90f,
@@ -78,10 +115,12 @@ namespace NOVor
                 new ConfigDescription("Cross-track distance in nautical miles that moves the manual CDI to full deflection when AutoScaleCdi is disabled.",
                     new AcceptableValueRange<float>(0.1f, 10f)));
             AutoScaleCdi = Config.Bind("Navigation", "AutoScaleCdi", true,
-                "Scale the CDI automatically by range: 5 NM enroute, 1 NM within 30 NM, 0.3 NM within 2 NM. When disabled, FullDeflectionNauticalMiles is used at all ranges.");
+                "Use conventional VOR angular scaling (full-scale at 10 degrees from the selected course). When disabled, FullDeflectionNauticalMiles is used at all ranges.");
             MaxInterceptDegrees = Config.Bind("Navigation", "MaxInterceptDegrees", 45f,
                 new ConfigDescription("Largest intercept angle commanded when the CDI is off scale.",
                     new AcceptableValueRange<float>(10f, 90f)));
+            DisplayUnits = Config.Bind("Navigation", "DisplayUnits", NavigationDisplayUnits.Aviation,
+                "Display navigation range and groundspeed in Aviation (NM/KT) or Metric (km/km/h) units.");
             HudOffsetX = Config.Bind("Hud", "OffsetX", 0f,
                 new ConfigDescription("Horizontal offset of the CDI instrument from HUD center (screen px).",
                     new AcceptableValueRange<float>(-800f, 800f)));
@@ -99,6 +138,9 @@ namespace NOVor
             HudNudgeStep = Config.Bind("Hud", "NudgeStep", 20f,
                 new ConfigDescription("Pixels the CDI instrument moves per nudge hotkey press.",
                     new AcceptableValueRange<float>(1f, 200f)));
+            HeadingCueResponseDegreesPerSecond = Config.Bind("Hud", "HeadingCueResponseDegreesPerSecond", 360f,
+                new ConfigDescription("Maximum visual movement rate of heading-tape navigation cues.",
+                    new AcceptableValueRange<float>(90f, 1080f)));
             HudNudgeUpKey = Config.Bind("Hotkeys", "HudNudgeUp", new KeyboardShortcut(KeyCode.UpArrow, KeyCode.LeftControl),
                 "Move the CDI instrument up (persisted to Hud OffsetY).");
             HudNudgeDownKey = Config.Bind("Hotkeys", "HudNudgeDown", new KeyboardShortcut(KeyCode.DownArrow, KeyCode.LeftControl),

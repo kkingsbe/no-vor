@@ -22,7 +22,9 @@ namespace NOVor
         private NavPanel _panel;
         private CourseMode _mode = CourseMode.Auto;
         private float _manualCourse;
-        private CdiScaleMode _scaleMode = CdiScaleMode.Enroute;
+        private CdiScaleMode _scaleMode = CdiScaleMode.Angular;
+        private int _selectedRunwayIndex = -1;
+        private RunwayGuidancePhase _runwayPhase = RunwayGuidancePhase.None;
 
         private CameraStateManager _camManager;
         private bool _camInputsOverridden;
@@ -45,13 +47,13 @@ namespace NOVor
 
             _panel = new NavPanel();
             _panel.Create();
-            _panel.AirportSelected += i => _selectedIndex = i;
-            _panel.ModeChanged += m => _mode = m;
+            _panel.AirportSelected += SelectAirport;
+            _panel.ModeChanged += SetCourseMode;
             _panel.CourseAdjusted += AdjustCourse;
             _panel.SetReciprocalCourse += () => SetManualCourse(_manualCourse + 180f);
             _panel.SetCourseToBearing += () => SetManualCourse(Data.Bearing);
             _panel.SetCourseToHeading += () => SetManualCourse(Data.Heading);
-            _panel.RunwaySelected += (index, heading) => SetManualCourse(heading);
+            _panel.RunwaySelected += SelectRunway;
             _panel.SetVisible(false);
             ModBarBridge.Register("no.vor", "NAV", "Navigation CDI", () => _panel.IsVisible, () => _panel.Toggle());
         }
@@ -209,11 +211,15 @@ namespace NOVor
             string label = runway.GetName(reverse);
             if (label.StartsWith("Runway "))
                 label = "RWY " + label.Substring(7);
+            Vector3 threshold = reverse ? runway.End.position : runway.Start.position;
+            Vector3 departureEnd = reverse ? runway.Start.position : runway.End.position;
             result.Add(new RunwayInfo
             {
                 Label = label,
                 Heading = heading,
-                LengthMeters = runway.Length
+                LengthMeters = runway.Length,
+                ThresholdPosition = threshold,
+                DepartureEndPosition = departureEnd
             });
         }
 
@@ -250,19 +256,20 @@ namespace NOVor
 
         private void HandleInput()
         {
-            if (Plugin.NextAirportKey.Value.IsDown()) CycleAirport(1);
-            if (Plugin.PrevAirportKey.Value.IsDown()) CycleAirport(-1);
-            if (Plugin.ToggleHudKey.Value.IsDown()) _hudVisible = !_hudVisible;
-            if (Plugin.ToggleMenuKey.Value.IsDown()) _panel?.Toggle();
-            if (Plugin.CourseDecreaseKey.Value.IsDown()) AdjustCourse(-Plugin.CourseStep.Value);
-            if (Plugin.CourseIncreaseKey.Value.IsDown()) AdjustCourse(Plugin.CourseStep.Value);
-            if (Plugin.DirectToKey.Value.IsDown()) SetManualCourse(Data.Bearing);
+            if (_panel != null && _panel.TickBindingCapture()) return;
+            if (InputBinding.IsDown(Plugin.NextAirportKey.Value, Plugin.HotasNextAirport.Value)) CycleAirport(1);
+            if (InputBinding.IsDown(Plugin.PrevAirportKey.Value, Plugin.HotasPrevAirport.Value)) CycleAirport(-1);
+            if (InputBinding.IsDown(Plugin.ToggleHudKey.Value, Plugin.HotasToggleHud.Value)) _hudVisible = !_hudVisible;
+            if (InputBinding.IsDown(Plugin.ToggleMenuKey.Value, Plugin.HotasToggleMenu.Value)) _panel?.Toggle();
+            if (InputBinding.IsDown(Plugin.CourseDecreaseKey.Value, Plugin.HotasCourseDecrease.Value)) AdjustCourse(-Plugin.CourseStep.Value);
+            if (InputBinding.IsDown(Plugin.CourseIncreaseKey.Value, Plugin.HotasCourseIncrease.Value)) AdjustCourse(Plugin.CourseStep.Value);
+            if (InputBinding.IsDown(Plugin.DirectToKey.Value, Plugin.HotasDirectTo.Value)) SetManualCourse(Data.Bearing);
 
             float step = Plugin.HudNudgeStep.Value;
-            if (Plugin.HudNudgeUpKey.Value.IsDown()) NudgeInstrument(0f, step);
-            if (Plugin.HudNudgeDownKey.Value.IsDown()) NudgeInstrument(0f, -step);
-            if (Plugin.HudNudgeLeftKey.Value.IsDown()) NudgeInstrument(-step, 0f);
-            if (Plugin.HudNudgeRightKey.Value.IsDown()) NudgeInstrument(step, 0f);
+            if (InputBinding.IsDown(Plugin.HudNudgeUpKey.Value, Plugin.HotasHudNudgeUp.Value)) NudgeInstrument(0f, step);
+            if (InputBinding.IsDown(Plugin.HudNudgeDownKey.Value, Plugin.HotasHudNudgeDown.Value)) NudgeInstrument(0f, -step);
+            if (InputBinding.IsDown(Plugin.HudNudgeLeftKey.Value, Plugin.HotasHudNudgeLeft.Value)) NudgeInstrument(-step, 0f);
+            if (InputBinding.IsDown(Plugin.HudNudgeRightKey.Value, Plugin.HotasHudNudgeRight.Value)) NudgeInstrument(step, 0f);
         }
 
         private void NudgeInstrument(float dx, float dy)
@@ -275,13 +282,41 @@ namespace NOVor
         private void AdjustCourse(float delta)
         {
             _manualCourse = Mathf.Repeat(_manualCourse + delta, 360f);
-            _mode = CourseMode.Manual;
+            if (_mode != CourseMode.Runway) _mode = CourseMode.Manual;
         }
 
         private void SetManualCourse(float value)
         {
+            ClearRunwaySelection();
             _manualCourse = Mathf.Repeat(value, 360f);
             _mode = CourseMode.Manual;
+        }
+
+        private void SelectAirport(int index)
+        {
+            _selectedIndex = index;
+            ClearRunwaySelection();
+        }
+
+        private void SetCourseMode(CourseMode mode)
+        {
+            _mode = mode;
+            if (mode != CourseMode.Runway) ClearRunwaySelection();
+        }
+
+        private void SelectRunway(int index, RunwayInfo runway)
+        {
+            _selectedRunwayIndex = index;
+            _manualCourse = Mathf.Repeat(runway.Heading, 360f);
+            _mode = CourseMode.Runway;
+            _runwayPhase = RunwayGuidancePhase.Intercept;
+        }
+
+        private void ClearRunwaySelection()
+        {
+            _selectedRunwayIndex = -1;
+            _runwayPhase = RunwayGuidancePhase.None;
+            _panel?.ClearRunwaySelection();
         }
 
         private void CycleAirport(int direction)
@@ -289,6 +324,7 @@ namespace NOVor
             if (_airbases.Count == 0) return;
             _selectedIndex = (_selectedIndex + direction) % _airbases.Count;
             if (_selectedIndex < 0) _selectedIndex += _airbases.Count;
+            ClearRunwaySelection();
         }
 
         private void RefreshAirbases()
@@ -303,9 +339,25 @@ namespace NOVor
             if (_airbases.Count == 0)
             {
                 _selectedIndex = -1;
+                ClearRunwaySelection();
                 return;
             }
             _selectedIndex = Mathf.Clamp(_selectedIndex, 0, _airbases.Count - 1);
+        }
+
+        private bool TryGetSelectedRunway(Airbase airbase, out RunwayInfo runway)
+        {
+            runway = default(RunwayInfo);
+            if (_mode != CourseMode.Runway || _selectedRunwayIndex < 0) return false;
+            RunwayInfo[] runways = GetRunways(airbase);
+            if (runways == null || _selectedRunwayIndex >= runways.Length)
+            {
+                ClearRunwaySelection();
+                _mode = CourseMode.Manual;
+                return false;
+            }
+            runway = runways[_selectedRunwayIndex];
+            return true;
         }
 
         private void UpdateData()
@@ -317,8 +369,9 @@ namespace NOVor
             float heading = Mathf.Repeat(rb.transform.eulerAngles.y, 360f);
 
             var target = _airbases[_selectedIndex];
-            var tpos = target.center.position;
-            var to = tpos - pos;
+            bool hasRunway = TryGetSelectedRunway(target, out RunwayInfo runway);
+            Vector3 navTarget = hasRunway ? runway.ThresholdPosition : target.center.position;
+            var to = navTarget - pos;
             float bearing = Mathf.Atan2(to.x, to.z) * Mathf.Rad2Deg;
             if (bearing < 0f) bearing += 360f;
             var horizontal = new Vector3(to.x, 0f, to.z);
@@ -337,13 +390,16 @@ namespace NOVor
             Data.Bearing = bearing;
             Data.DistanceNm = distance / 1852f;
             Data.AirportName = GetAirbaseName(target);
-            Data.Mode = _mode;
-            Data.Course = _mode == CourseMode.Manual ? _manualCourse : bearing;
+            Data.RunwayLabel = hasRunway ? runway.Label : null;
+            Data.HasRunway = hasRunway;
+            Data.Mode = hasRunway ? CourseMode.Runway : _mode;
+            Data.Course = Data.Mode == CourseMode.Auto ? bearing : _manualCourse;
             Data.ToStation = NavMath.IsToStation(Data.Course, bearing);
-            Data.SteerHeading = (float)NavMath.DriftCorrectedHeadingDegrees(bearing, heading, groundTrack);
-            Data.SteeringError = (float)NavMath.SteeringErrorDegrees(heading, Data.SteerHeading);
             float crossTrackMeters = (float)NavMath.CrossTrackMeters(Data.Course, -horizontal.x, -horizontal.z);
             Data.CrossTrackNm = crossTrackMeters / 1852f;
+            Data.AlongTrackToThresholdNm = hasRunway
+                ? (float)(NavMath.AlongTrackToThresholdMeters(Data.Course, -horizontal.x, -horizontal.z) / 1852d)
+                : 0f;
 
             var deviation = CdiScale.Evaluate(Data.Course, Data.CrossTrackNm, Data.DistanceNm,
                 _scaleMode, Plugin.AutoScaleCdi.Value, Plugin.FullDeflectionNm.Value,
@@ -354,8 +410,37 @@ namespace NOVor
             Data.FullScaleNm = (float)deviation.FullScaleNm;
             Data.Side = deviation.Side;
             Data.OffScale = deviation.OffScale;
-            Data.InterceptHeading = (float)deviation.InterceptHeading;
-            Data.Deflection = _mode == CourseMode.Manual ? (float)deviation.Deflection : 0f;
+            Data.Deflection = Data.Mode == CourseMode.Auto ? 0f : (float)deviation.Deflection;
+            if (hasRunway)
+            {
+                RunwayGuidanceOutput runwayGuidance = RunwayGuidance.Evaluate(new RunwayGuidanceInput
+                {
+                    CourseDegrees = Data.Course,
+                    CrossTrackNm = Data.CrossTrackNm,
+                    AlongTrackToThresholdNm = Data.AlongTrackToThresholdNm,
+                    GroundSpeedKnots = horizontalSpeed * 1.9438445f,
+                    HeadingDegrees = Data.Heading,
+                    GroundTrackDegrees = Data.GroundTrack,
+                    MaxInterceptDegrees = Plugin.MaxInterceptDegrees.Value,
+                    WasEstablished = _runwayPhase == RunwayGuidancePhase.Established
+                });
+                _runwayPhase = runwayGuidance.Phase;
+                Data.RunwayPhase = runwayGuidance.Phase;
+                Data.CommandHeading = (float)runwayGuidance.CommandHeadingDegrees;
+            }
+            else
+            {
+                Data.RunwayPhase = RunwayGuidancePhase.None;
+                Data.CommandHeading = (float)GuidanceMath.CommandHeadingDegrees(
+                    _mode == CourseMode.Manual,
+                    Data.Course,
+                    Data.Bearing,
+                    Data.CrossTrackNm,
+                    Plugin.MaxInterceptDegrees.Value,
+                    Data.Heading,
+                    Data.GroundTrack);
+            }
+            Data.CommandError = (float)NavMath.SteeringErrorDegrees(Data.Heading, Data.CommandHeading);
             Data.GroundSpeedKnots = horizontalSpeed * 1.9438445f;
             Data.HasEta = !double.IsNaN(eta) && !double.IsInfinity(eta);
             Data.EtaSeconds = Data.HasEta ? (float)eta : 0f;
