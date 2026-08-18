@@ -8,7 +8,7 @@
     <AssemblyName>NOVor</AssemblyName>
     <RootNamespace>NOVor</RootNamespace>
     <Product>NO VOR CDI</Product>
-    <Version>1.0.0</Version>
+    <Version>1.0.1</Version>
     <Deterministic>true</Deterministic>
     <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
     <OutputPath>bin\$(Configuration)</OutputPath>
